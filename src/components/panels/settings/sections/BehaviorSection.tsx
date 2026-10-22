@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { error } from "@tauri-apps/plugin-log";
+import { useTranslation } from "../../../../i18n";
 import { DEFAULT_MAX_CLICK_SPEED } from "../../../../settingsSchema";
 import type { Settings } from "../../../../store";
 import { NumInput } from "../../advanced/sections/shared";
@@ -20,6 +21,7 @@ export default function BehaviorSection({
   onToggleAlwaysOnTop,
   portable,
 }: Props) {
+  const { t } = useTranslation();
   const [pendingAction, setPendingAction] = useState<
     "extended-click-speed-limit" | null
   >(null);
@@ -58,14 +60,14 @@ export default function BehaviorSection({
   return (
     <>
       <SettingsCard
-        title="Behavior"
-        description="Change how the auto clicker runs."
+        title={t("Behavior")}
+        description={t("Change how the auto clicker runs.")}
       >
         <div className="settings-row">
           <div className="settings-label-group">
-            <span className="settings-label">Always on Top</span>
+            <span className="settings-label">{t("Always on Top")}</span>
             <span className="settings-sublabel">
-              Keep the window above others.
+              {t("Keep the window above others.")}
             </span>
           </div>
           <div className="settings-toggle-wrapper">
@@ -80,9 +82,9 @@ export default function BehaviorSection({
 
         <div className="settings-row">
           <div className="settings-label-group">
-            <span className="settings-label">Stop Hitbox Overlay</span>
+            <span className="settings-label">{t("Stop Hitbox Overlay")}</span>
             <span className="settings-sublabel">
-              Show the stop zone boundaries.
+              {t("Show the stop zone boundaries.")}
             </span>
           </div>
           <div className="settings-toggle-wrapper">
@@ -99,9 +101,9 @@ export default function BehaviorSection({
 
         <div className="settings-row">
           <div className="settings-label-group">
-            <span className="settings-label">Stop Reason Alert</span>
+            <span className="settings-label">{t("Stop Reason Alert")}</span>
             <span className="settings-sublabel">
-              Show a notification when the auto clicker stops.
+              {t("Show a notification when the auto clicker stops.")}
             </span>
           </div>
           <div className="settings-toggle-wrapper">
@@ -118,9 +120,11 @@ export default function BehaviorSection({
 
         <div className="settings-row">
           <div className="settings-label-group">
-            <span className="settings-label">Strict Hotkey Modifiers</span>
+            <span className="settings-label">
+              {t("Strict Hotkey Modifiers")}
+            </span>
             <span className="settings-sublabel">
-              Require exact modifier keys for hotkeys.
+              {t("Require exact modifier keys for hotkeys.")}
             </span>
           </div>
           <div className="settings-toggle-wrapper">
@@ -139,9 +143,9 @@ export default function BehaviorSection({
 
         <div className="settings-row">
           <div className="settings-label-group">
-            <span className="settings-label">Stop on Alt+Tab</span>
+            <span className="settings-label">{t("Stop on Alt+Tab")}</span>
             <span className="settings-sublabel">
-              Stop clicking when switching to another window.
+              {t("Stop clicking when switching to another window.")}
             </span>
           </div>
           <div className="settings-toggle-wrapper">
@@ -160,9 +164,11 @@ export default function BehaviorSection({
 
         <div className="settings-row">
           <div className="settings-label-group">
-            <span className="settings-label">Extended Click Speed Limit</span>
+            <span className="settings-label">
+              {t("Extended Click Speed Limit")}
+            </span>
             <span className="settings-sublabel">
-              Allow click speeds up to 1000 CPS (may affect performance).
+              {t("Allow click speeds up to 1000 CPS (may affect performance).")}
             </span>
           </div>
           <div className="settings-toggle-wrapper">
@@ -181,14 +187,14 @@ export default function BehaviorSection({
       </SettingsCard>
 
       <SettingsCard
-        title="Click Points Defaults"
-        description="Default values for newly picked click points."
+        title={t("Click Points Defaults")}
+        description={t("Default values for newly picked click points.")}
       >
         <div className="settings-row">
           <div className="settings-label-group">
-            <span className="settings-label">Default Clicks</span>
+            <span className="settings-label">{t("Default Clicks")}</span>
             <span className="settings-sublabel">
-              Clicks per point for new entries.
+              {t("Clicks per point for new entries.")}
             </span>
           </div>
           <div className="adv-numbox-sm" style={{ gap: "0.25rem" }}>
@@ -196,7 +202,7 @@ export default function BehaviorSection({
               className="adv-unit"
               style={{ minWidth: "0.75rem", textAlign: "left" }}
             >
-              clicks
+              {t("clicks")}
             </span>
             <NumInput
               hoverWheel={false}
@@ -210,9 +216,9 @@ export default function BehaviorSection({
         </div>
         <div className="settings-row">
           <div className="settings-label-group">
-            <span className="settings-label">Default Radius</span>
+            <span className="settings-label">{t("Default Radius")}</span>
             <span className="settings-sublabel">
-              Randomization radius for new entries.
+              {t("Randomization radius for new entries.")}
             </span>
           </div>
           <div className="adv-numbox-sm" style={{ gap: "0.25rem" }}>
@@ -234,12 +240,15 @@ export default function BehaviorSection({
         </div>
       </SettingsCard>
 
-      <SettingsCard title="Startup" description="Behavior when the app opens.">
+      <SettingsCard
+        title={t("Startup")}
+        description={t("Behavior when the app opens.")}
+      >
         <div className="settings-row">
           <div className="settings-label-group">
-            <span className="settings-label">Minimize to Tray</span>
+            <span className="settings-label">{t("Minimize to Tray")}</span>
             <span className="settings-sublabel">
-              Minimize to the system tray instead of the taskbar.
+              {t("Minimize to the system tray instead of the taskbar.")}
             </span>
           </div>
           <div className="settings-toggle-wrapper">
@@ -256,9 +265,11 @@ export default function BehaviorSection({
 
         <div className="settings-row">
           <div className="settings-label-group">
-            <span className="settings-label">Remember Window Position</span>
+            <span className="settings-label">
+              {t("Remember Window Position")}
+            </span>
             <span className="settings-sublabel">
-              Open the window at its last position on startup.
+              {t("Open the window at its last position on startup.")}
             </span>
           </div>
           <div className="settings-toggle-wrapper">
@@ -278,9 +289,9 @@ export default function BehaviorSection({
         {!portable && (
           <div className="settings-row">
             <div className="settings-label-group">
-              <span className="settings-label">Run on Startup</span>
+              <span className="settings-label">{t("Run on Startup")}</span>
               <span className="settings-sublabel">
-                Start clicking when the app opens.
+                {t("Start clicking when the app opens.")}
               </span>
             </div>
             <div className="settings-toggle-wrapper">
@@ -310,9 +321,11 @@ export default function BehaviorSection({
 
       <ConfirmDialog
         open={pendingAction === "extended-click-speed-limit"}
-        title="Enable extended click speed limit?"
-        message="This will allow click speeds beyond the default limit. This may affect performance."
-        confirmLabel="Enable"
+        title={t("Enable extended click speed limit?")}
+        message={t(
+          "This will allow click speeds beyond the default limit. This may affect performance.",
+        )}
+        confirmLabel={t("Enable")}
         onConfirm={handleConfirmExtendedClickSpeedLimit}
         onCancel={() => setPendingAction(null)}
       />

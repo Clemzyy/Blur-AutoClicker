@@ -169,6 +169,37 @@
         let zoneFadeAnim = null;
         let hasFadedIn = false;
 
+        // Hint texts per language, in the order they appear in each prompt
+        // (leading text, then each <span>). English stays in the HTML.
+        const OVERLAY_TEXTS = {
+            fr: {
+                'pick-prompt': [
+                    'Clic droit pour ajouter un point.',
+                    'Maj + clic droit pour en ajouter plusieurs.',
+                    'Ctrl + clic droit pour supprimer un point.',
+                    'Échap pour annuler.',
+                ],
+                'stop-zone-prompt': [
+                    'Clic droit et glisser pour tracer une zone d’arrêt.',
+                    'Relâchez pour enregistrer.',
+                    'Échap pour annuler.',
+                ],
+            },
+        };
+        const englishPromptTexts = {};
+
+        function applyOverlayLanguage(language) {
+            for (const id of ['pick-prompt', 'stop-zone-prompt']) {
+                const prompt = document.getElementById(id);
+                const parts = [prompt.firstChild, ...prompt.querySelectorAll('span')];
+                englishPromptTexts[id] ??= parts.map((node) => node.textContent.trim());
+                const texts = (OVERLAY_TEXTS[language] || {})[id] || englishPromptTexts[id];
+                parts.forEach((node, index) => {
+                    node.textContent = texts[index];
+                });
+            }
+        }
+
         function setupTauriListener() {
             if (!window.__TAURI__ || !window.__TAURI__.event) {
                 console.log('[Overlay] Tauri not ready, retrying...');
@@ -210,6 +241,10 @@
 
             window.__TAURI__.event.listen('custom-stop-zone-clear-preview', () => {
                 clearStopZonePreview();
+            });
+
+            window.__TAURI__.event.listen('overlay-language', (event) => {
+                applyOverlayLanguage(event.payload);
             });
 
             console.log('[Overlay] Event listeners registered');

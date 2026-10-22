@@ -5,6 +5,7 @@ import { error } from "@tauri-apps/plugin-log";
 import { invoke } from "@tauri-apps/api/core";
 import { useRef, useState } from "react";
 
+import { msg, useTranslation } from "../i18n";
 import { isPortableMode } from "../store";
 import {
   compareVersions,
@@ -31,6 +32,7 @@ export default function UpdateBanner({
   latestVersion,
   portable = false,
 }: UpdateBannerProps) {
+  const { t } = useTranslation();
   const [stage, setStage] = useState<UpdateStage>("ready");
   const [statusText, setStatusText] = useState<string | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -83,7 +85,7 @@ export default function UpdateBanner({
         }),
       );
       setStage("error");
-      setStatusText("Could not open the download page.");
+      setStatusText(msg("Could not open the download page."));
     }
   };
 
@@ -108,43 +110,43 @@ export default function UpdateBanner({
         }),
       );
       setStage("error");
-      setStatusText("Update check failed. Try again.");
+      setStatusText(msg("Update check failed. Try again."));
       return;
     }
 
     try {
       setStage("installing");
-      setStatusText("Preparing update...");
+      setStatusText(msg("Preparing update..."));
 
       const update = await check();
       if (!update) {
         setStage("ready");
-        setStatusText("Update is no longer available.");
+        setStatusText(msg("Update is no longer available."));
         return;
       }
 
       await update.downloadAndInstall((event) => {
         switch (event.event) {
           case "Started":
-            setStatusText("Downloading update...");
+            setStatusText(msg("Downloading update..."));
             break;
           case "Progress":
-            setStatusText("Installing update...");
+            setStatusText(msg("Installing update..."));
             break;
           case "Finished":
-            setStatusText("Update installed. Restart to apply it.");
+            setStatusText(msg("Update installed. Restart to apply it."));
             break;
         }
       });
 
       setStage("restart-required");
-      setStatusText("Update installed. Restart to apply it.");
+      setStatusText(msg("Update installed. Restart to apply it."));
     } catch (err) {
       error(
         JSON.stringify({ source: "Updatebanner.install", error: String(err) }),
       );
       setStage("error");
-      setStatusText("Update install failed.");
+      setStatusText(msg("Update install failed."));
     }
   };
 
@@ -156,33 +158,39 @@ export default function UpdateBanner({
         JSON.stringify({ source: "Updatebanner.relaunch", error: String(err) }),
       );
       setStage("error");
-      setStatusText("Restart failed. Please reopen the app manually.");
+      setStatusText(msg("Restart failed. Please reopen the app manually."));
     }
   };
 
   const installDisabledReason =
     stage === "installing"
       ? statusText === "Installing update..."
-        ? "The update is already installing. Wait for it to finish before trying again."
+        ? t(
+            "The update is already installing. Wait for it to finish before trying again.",
+          )
         : statusText === "Downloading update..."
-          ? "The update is already downloading. Wait for the current install to finish."
-          : "The update is already being prepared. Wait for it to finish before trying again."
+          ? t(
+              "The update is already downloading. Wait for the current install to finish.",
+            )
+          : t(
+              "The update is already being prepared. Wait for it to finish before trying again.",
+            )
       : undefined;
 
   return (
     <div className="update-banner">
       <span className="update-banner-text-old-version">v{currentVersion}</span>
-      <span className="update-banner-text">to</span>
+      <span className="update-banner-text">{t("to")}</span>
       {/* does not need v for version, gets it from gitHub ↓  */}
       <span className="update-banner-text-new-version">{latestVersion}</span>
       {statusText && (
         <span className="update-banner-status" data-stage={stage}>
-          {statusText}
+          {t(statusText)}
         </span>
       )}
       {stage === "restart-required" ? (
         <button className="update-banner-btn" onClick={handleRestart}>
-          Restart to Apply Update
+          {t("Restart to Apply Update")}
         </button>
       ) : (
         <UnavailableReason
@@ -194,10 +202,10 @@ export default function UpdateBanner({
             disabled={!portable && stage === "installing"}
           >
             {portable
-              ? "Download from GitHub"
+              ? t("Download from GitHub")
               : stage === "installing"
-                ? "Installing..."
-                : "Download and Install"}
+                ? t("Installing...")
+                : t("Download and Install")}
           </button>
         </UnavailableReason>
       )}
@@ -206,7 +214,7 @@ export default function UpdateBanner({
           className="update-banner-btn update-banner-preview-btn"
           onClick={handlePreview}
         >
-          Preview Changes
+          {t("Preview Changes")}
         </button>
       )}
       <UpdatePreviewModal

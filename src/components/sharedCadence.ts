@@ -11,18 +11,19 @@ import {
   overflowDurationField,
 } from "../cadence";
 import type { CadenceDurationFields } from "../cadence";
+import { msg } from "../i18n";
 import type { RateInputMode, Settings } from "../store";
 
 export const INTERVAL_OPTIONS = [
-  { value: "s", label: "Second" },
-  { value: "m", label: "Minute" },
-  { value: "h", label: "Hour" },
-  { value: "d", label: "Day" },
+  { value: "s", label: msg("Second") },
+  { value: "m", label: msg("Minute") },
+  { value: "h", label: msg("Hour") },
+  { value: "d", label: msg("Day") },
 ] as const;
 
 export const SIMPLE_RATE_INPUT_MODE_OPTIONS = [
-  { value: "rate", label: "Rate" },
-  { value: "duration", label: "Interval" },
+  { value: "rate", label: msg("Rate") },
+  { value: "duration", label: msg("Interval") },
 ] as const;
 
 export function parseIntegerRaw(raw: string) {

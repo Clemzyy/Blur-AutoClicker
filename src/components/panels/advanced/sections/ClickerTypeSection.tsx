@@ -1,3 +1,4 @@
+import { useTranslation } from "../../../../i18n";
 import type { MouseButton, Settings } from "../../../../store";
 import { MOUSE_BUTTON_OPTIONS } from "../../../../settingsSchema";
 import { isAlphabeticKeyboardKey } from "../../../../keyboardKeyCase";
@@ -25,9 +26,10 @@ interface Props {
 }
 
 export default function ClickerTypeSection({ settings, update }: Props) {
+  const { t } = useTranslation();
   const inputTypeOptions = [
-    { value: "mouse", label: "Mouse" },
-    { value: "keyboard", label: "Keyboard" },
+    { value: "mouse", label: t("Mouse") },
+    { value: "keyboard", label: t("Keyboard") },
   ] as const;
 
   const canToggleKeyboardKeyCase = isAlphabeticKeyboardKey(
@@ -49,7 +51,7 @@ export default function ClickerTypeSection({ settings, update }: Props) {
       settings.keyboardKey,
       keyboardKeyCaseIsUpper,
     );
-  const autoPressKeyConflicts = hasConflict ? ["Hotkey"] : [];
+  const autoPressKeyConflicts = hasConflict ? [t("Hotkey")] : [];
 
   const currentClicksPerSecond = getEffectiveClicksPerSecond({
     clickInterval: settings.clickInterval,
@@ -63,7 +65,10 @@ export default function ClickerTypeSection({ settings, update }: Props) {
 
   const doubleClickDisabled = !isDoubleClickSupported(settings);
   const doubleClickDisabledReason = doubleClickDisabled
-    ? `Double Click is unavailable at ${formatClicksPerSecond(currentClicksPerSecond)} clicks/sec. Lower the click speed below 10 clicks/sec to turn it on.`
+    ? t(
+        "Double Click is unavailable at {cps} clicks/sec. Lower the click speed below 10 clicks/sec to turn it on.",
+        { cps: formatClicksPerSecond(currentClicksPerSecond) },
+      )
     : undefined;
 
   return (
@@ -91,7 +96,7 @@ export default function ClickerTypeSection({ settings, update }: Props) {
               <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.106-3.105c.32-.322.863-.22.983.218a6 6 0 0 1-8.259 7.057l-7.91 7.91a1 1 0 0 1-2.999-3l7.91-7.91a6 6 0 0 1 7.057-8.259c.438.12.54.662.219.984z" />
             </svg>
           </span>
-          <span className="adv-card-title">Clicker Type</span>
+          <span className="adv-card-title">{t("Clicker Type")}</span>
         </div>
         <div className="adv-seg-group adv-input-type-group">
           {inputTypeOptions.map((inputTypeOption) => (
@@ -114,7 +119,7 @@ export default function ClickerTypeSection({ settings, update }: Props) {
       </div>
       <CardDivider />
       <div className="adv-card-desc">
-        Select the mouse button or keyboard key the autoclicker clicks.
+        {t("Select the mouse button or keyboard key the autoclicker clicks.")}
       </div>
       <div
         className="adv-row adv-target-row"
@@ -130,7 +135,7 @@ export default function ClickerTypeSection({ settings, update }: Props) {
                 marginRight: "auto",
               }}
             >
-              <span className="adv-label">Double Click</span>
+              <span className="adv-label">{t("Double Click")}</span>
               <ToggleBtn
                 value={settings.doubleClickEnabled}
                 onChange={(v) => update({ doubleClickEnabled: v })}
@@ -148,7 +153,7 @@ export default function ClickerTypeSection({ settings, update }: Props) {
                     update({ mouseButton: mouseButtonOption as MouseButton })
                   }
                 >
-                  {mouseButtonOption}
+                  {t(mouseButtonOption)}
                 </button>
               ))}
             </div>
@@ -163,7 +168,7 @@ export default function ClickerTypeSection({ settings, update }: Props) {
                 marginRight: "auto",
               }}
             >
-              <span className="adv-label">Double Click</span>
+              <span className="adv-label">{t("Double Click")}</span>
               <ToggleBtn
                 value={settings.doubleClickEnabled}
                 onChange={(v) => update({ doubleClickEnabled: v })}
@@ -192,11 +197,11 @@ export default function ClickerTypeSection({ settings, update }: Props) {
                 }`}
                 aria-label={
                   keyboardKeyCaseIsUpper
-                    ? "Send letters as uppercase"
-                    : "Send letters as lowercase"
+                    ? t("Send letters as uppercase")
+                    : t("Send letters as lowercase")
                 }
                 aria-pressed={keyboardKeyCaseIsUpper}
-                title="Toggle keyboard key case"
+                title={t("Toggle keyboard key case")}
                 disabled={!canToggleKeyboardKeyCase}
                 onClick={toggleKeyboardKeyCase}
               >

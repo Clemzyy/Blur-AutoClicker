@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import type { Tab } from "../App";
+import { msg, useTranslation } from "../i18n";
 
 import "./TitleBar.css";
 
@@ -58,34 +59,35 @@ const DEFAULT_TITLE_STATE: TitleViewState = {
   isReason: false,
 };
 
+// Short English stop reasons for the title; translated where they are shown.
 const STOP_REASON_TEXTS: Record<string, string> = {
-  "Stopped from UI": "Stopped",
-  "Stopped from toggle": "Stopped",
-  "Stopped from hotkey": "Stopped",
-  "Stopped from hold hotkey": "Stopped",
-  Stopped: "Stopped",
-  "Top-left corner failsafe": "Corner failsafe",
-  "Top-right corner failsafe": "Corner failsafe",
-  "Bottom-left corner failsafe": "Corner failsafe",
-  "Bottom-right corner failsafe": "Corner failsafe",
-  "Top edge failsafe": "Edge failsafe",
-  "Right edge failsafe": "Edge failsafe",
-  "Bottom edge failsafe": "Edge failsafe",
-  "Left edge failsafe": "Edge failsafe",
-  "Blocked by Alt+Tab": "Blocked by Alt+Tab",
-  "Blocked by process list": "Blocked by process list",
+  "Stopped from UI": msg("Stopped"),
+  "Stopped from toggle": msg("Stopped"),
+  "Stopped from hotkey": msg("Stopped"),
+  "Stopped from hold hotkey": msg("Stopped"),
+  Stopped: msg("Stopped"),
+  "Top-left corner failsafe": msg("Corner failsafe"),
+  "Top-right corner failsafe": msg("Corner failsafe"),
+  "Bottom-left corner failsafe": msg("Corner failsafe"),
+  "Bottom-right corner failsafe": msg("Corner failsafe"),
+  "Top edge failsafe": msg("Edge failsafe"),
+  "Right edge failsafe": msg("Edge failsafe"),
+  "Bottom edge failsafe": msg("Edge failsafe"),
+  "Left edge failsafe": msg("Edge failsafe"),
+  "Blocked by Alt+Tab": msg("Blocked by Alt+Tab"),
+  "Blocked by process list": msg("Blocked by process list"),
 };
 
-function translateStopReason(stopReason: string | null | undefined): string {
+function shortStopReason(stopReason: string | null | undefined): string {
   if (!stopReason) return "";
   const staticText = STOP_REASON_TEXTS[stopReason];
   if (staticText) return staticText;
 
   const clickLimit = stopReason.match(/^Click limit reached \((.+)\)$/);
-  if (clickLimit) return "Click limit reached";
+  if (clickLimit) return msg("Click limit reached");
 
   const timeLimit = stopReason.match(/^Time limit reached \((.+)\)$/);
-  if (timeLimit) return "Time limit reached";
+  if (timeLimit) return msg("Time limit reached");
 
   return stopReason;
 }
@@ -188,7 +190,7 @@ const ClickPointsIcon = memo(function ClickPointsIcon({
 const TAB_ITEMS: readonly TabItem[] = [
   {
     value: "simple",
-    label: "Simple",
+    label: msg("Simple"),
     color: "var(--accent)",
     activeBg: "var(--accent-soft)",
     activeFocusRing: "var(--accent-ring)",
@@ -196,7 +198,7 @@ const TAB_ITEMS: readonly TabItem[] = [
   },
   {
     value: "advanced",
-    label: "Advanced",
+    label: msg("Advanced"),
     color: "var(--accent-yellow)",
     activeBg: "rgba(254, 188, 47, 0.1)",
     activeFocusRing: "rgba(254, 188, 47, 0.25)",
@@ -204,7 +206,7 @@ const TAB_ITEMS: readonly TabItem[] = [
   },
   {
     value: "zones",
-    label: "Zones",
+    label: msg("Zones"),
     color: "hsl(208 85% 58%)",
     activeBg: "hsla(208, 85%, 58%, 0.14)",
     activeFocusRing: "hsla(208, 85%, 58%, 0.35)",
@@ -212,7 +214,7 @@ const TAB_ITEMS: readonly TabItem[] = [
   },
   {
     value: "click-points",
-    label: "Click Points",
+    label: msg("Click Points"),
     color: "hsl(180 75% 40%)",
     activeBg: "hsla(180, 75%, 40%, 0.14)",
     activeFocusRing: "hsla(180, 75%, 40%, 0.35)",
@@ -231,6 +233,7 @@ const TitleBar = memo(function TitleBar({
   statusBarHidden,
   masterOff,
 }: Props) {
+  const { t } = useTranslation();
   const setTabRef = useRef(setTab);
   useEffect(() => {
     setTabRef.current = setTab;
@@ -263,8 +266,8 @@ const TitleBar = memo(function TitleBar({
           className="settings-button"
           data-active={tab === "settings"}
           onClick={handleSettingsClick}
-          title="Settings"
-          aria-label="Settings"
+          title={t("Settings")}
+          aria-label={t("Settings")}
           style={{ WebkitAppRegion: "no-drag" } as CSSProperties}
         >
           <svg
@@ -288,7 +291,7 @@ const TitleBar = memo(function TitleBar({
             return (
               <TabIconButton
                 key={item.value}
-                label={item.label}
+                label={t(item.label)}
                 active={isActive}
                 onClick={handleTabClick}
                 value={item.value}
@@ -323,9 +326,9 @@ const TitleBar = memo(function TitleBar({
         {masterOff && (
           <span
             className="master-off-badge"
-            title="Master switch off — clicker blocked"
+            title={t("Master switch off — clicker blocked")}
           >
-            MASTER OFF
+            {t("MASTER OFF")}
           </span>
         )}
         <WindowBtn
@@ -334,7 +337,9 @@ const TitleBar = memo(function TitleBar({
           }}
           active={isAlwaysOnTop}
           title={
-            isAlwaysOnTop ? "Disable Always on Top" : "Enable Always on Top"
+            isAlwaysOnTop
+              ? t("Disable Always on Top")
+              : t("Enable Always on Top")
           }
           label={
             <svg
@@ -360,7 +365,7 @@ const TitleBar = memo(function TitleBar({
           onClick={() => {
             void handleMinimize();
           }}
-          title="Minimize"
+          title={t("Minimize")}
           label={
             <svg width="10" height="2" viewBox="0 0 10 2" fill="none">
               <rect width="10" height="2" fill="currentColor" />
@@ -372,7 +377,7 @@ const TitleBar = memo(function TitleBar({
             void onRequestClose();
           }}
           danger
-          title="Close"
+          title={t("Close")}
           label={
             <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
               <path
@@ -397,6 +402,7 @@ function AnimatedTitle({
   stopReason: string | null;
   running: boolean;
 }) {
+  const { t } = useTranslation();
   const [titleState, setTitleState] = useState(DEFAULT_TITLE_STATE);
   const frameIdsRef = useRef<number[]>([]);
   const timeoutIdsRef = useRef<number[]>([]);
@@ -446,7 +452,7 @@ function AnimatedTitle({
 
     queueFrame(() => {
       setTitleState({
-        text: translateStopReason(stopReason),
+        text: shortStopReason(stopReason),
         isReason: true,
         flipClass: "squish-in",
       });
@@ -470,7 +476,7 @@ function AnimatedTitle({
     <span
       className={`window-title title-flipper ${titleState.flipClass} ${titleState.isReason ? "is-reason" : ""}`}
     >
-      {titleState.text}
+      {titleState.isReason ? t(titleState.text) : titleState.text}
     </span>
   );
 }

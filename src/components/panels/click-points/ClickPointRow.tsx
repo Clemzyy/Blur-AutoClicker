@@ -1,4 +1,5 @@
 import { type CSSProperties } from "react";
+import { useTranslation } from "../../../i18n";
 import type { ClickPoint } from "../../../store";
 import { NumInput } from "../advanced/sections/shared";
 
@@ -32,6 +33,7 @@ export default function ClickPointRow({
   onDragStart,
   setItemRef,
 }: Props) {
+  const { t } = useTranslation();
   return (
     <div
       key={point.id}
@@ -56,7 +58,7 @@ export default function ClickPointRow({
         <button
           type="button"
           className="adv-click-points-drag-handle"
-          aria-label="Up / Down"
+          aria-label={t("Up / Down")}
           onPointerDown={(event) => {
             event.preventDefault();
             const handle = event.currentTarget;
@@ -129,7 +131,7 @@ export default function ClickPointRow({
           className="adv-unit"
           style={{ minWidth: "0.75rem", textAlign: "left" }}
         >
-          clicks
+          {t("clicks")}
         </span>
         <NumInput
           hoverWheel={false}
@@ -164,8 +166,8 @@ export default function ClickPointRow({
           type="button"
           className="adv-click-points-delete"
           onClick={() => onDelete(index)}
-          aria-label="Delete"
-          title="Delete"
+          aria-label={t("Delete")}
+          title={t("Delete")}
         >
           <svg
             width="16"

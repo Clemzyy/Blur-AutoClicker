@@ -1,3 +1,4 @@
+import { useTranslation } from "../../../../i18n";
 import type { Settings } from "../../../../store";
 
 import {
@@ -12,6 +13,7 @@ interface Props {
 }
 
 export default function DutyCycleSection({ settings, update }: Props) {
+  const { t } = useTranslation();
   return (
     <div className="adv-sectioncontainer adv-basic-card">
       <div className="adv-card-header">
@@ -39,7 +41,7 @@ export default function DutyCycleSection({ settings, update }: Props) {
               <path d="M6 4v2a6 6 0 1 0 12 0v-2a1 1 0 0 0 -1 -1h-10a1 1 0 0 0 -1 1" />
             </svg>
           </span>
-          <span className="adv-card-title">Duty Cycle</span>
+          <span className="adv-card-title">{t("Duty Cycle")}</span>
         </div>
         <div className="adv-seg-group">
           {DUTY_CYCLE_MODE_OPTIONS.map((dutyCycleOption) => (
@@ -74,7 +76,7 @@ export default function DutyCycleSection({ settings, update }: Props) {
                 }
               }}
             >
-              {dutyCycleOption}
+              {t(dutyCycleOption)}
             </button>
           ))}
         </div>
@@ -82,8 +84,8 @@ export default function DutyCycleSection({ settings, update }: Props) {
       <CardDivider />
       <div className="adv-card-desc">
         {settings.dutyCycleMode === "Click"
-          ? "Controls how long the button is held during each click."
-          : "Holds the button down continuously. Click speed is disabled."}
+          ? t("Controls how long the button is held during each click.")
+          : t("Holds the button down continuously. Click speed is disabled.")}
       </div>
       {settings.dutyCycleMode === "Click" && (
         <div className="adv-row" style={{ gap: 8, justifyContent: "flex-end" }}>
@@ -106,7 +108,7 @@ export default function DutyCycleSection({ settings, update }: Props) {
               whiteSpace: "nowrap",
             }}
           >
-            hold duration
+            {t("hold duration")}
           </span>
         </div>
       )}

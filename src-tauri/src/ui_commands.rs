@@ -379,6 +379,16 @@ pub fn debug_trigger_panic() -> AppResult<()> {
     }
 }
 
+/// Relabels the tray menu in the interface language (the menu is built in English).
+#[tauri::command]
+pub fn set_tray_labels(app: AppHandle, show: String, quit: String) -> AppResult<()> {
+    if let Some(items) = app.try_state::<crate::TrayMenuItems>() {
+        items.show.set_text(show)?;
+        items.quit.set_text(quit)?;
+    }
+    Ok(())
+}
+
 #[tauri::command]
 pub fn debug_trigger_crash() -> AppResult<()> {
     #[cfg(debug_assertions)]

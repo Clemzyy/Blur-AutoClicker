@@ -1,3 +1,4 @@
+import { useTranslation } from "../../../../i18n";
 import type { Settings } from "../../../../store";
 
 import { SETTINGS_LIMITS } from "../../../../settingsSchema";
@@ -9,6 +10,7 @@ interface Props {
 }
 
 export default function SpeedRandomizationSection({ settings, update }: Props) {
+  const { t } = useTranslation();
   return (
     <div className="adv-sectioncontainer adv-basic-card">
       <div className="adv-card-header">
@@ -57,7 +59,7 @@ export default function SpeedRandomizationSection({ settings, update }: Props) {
               />
             </svg>
           </span>
-          <span className="adv-card-title">Speed Randomization</span>
+          <span className="adv-card-title">{t("Speed Randomization")}</span>
         </div>
         <ToggleBtn
           value={settings.speedRandomizationEnabled}
@@ -67,10 +69,12 @@ export default function SpeedRandomizationSection({ settings, update }: Props) {
       <CardDivider />
       <Disableable
         enabled={settings.speedRandomizationEnabled}
-        disabledReason="Enable Speed Randomization to edit how much the app randomizes your click timing."
+        disabledReason={t(
+          "Enable Speed Randomization to edit how much the app randomizes your click timing.",
+        )}
       >
         <div className="adv-card-desc">
-          Randomizes your click speed by the given percentage.
+          {t("Randomizes your click speed by the given percentage.")}
         </div>
         <div className="adv-row" style={{ gap: 8, justifyContent: "flex-end" }}>
           <div className="adv-numbox-sm">

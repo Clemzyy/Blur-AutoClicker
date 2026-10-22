@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useTranslation } from "../../../../i18n";
 import type { Settings, TimeLimitUnit } from "../../../../store";
 
 import {
@@ -13,6 +14,7 @@ interface Props {
 }
 
 export default function LimitsSection({ settings, update }: Props) {
+  const { t } = useTranslation();
   const [mode, setMode] = useState<"clicks" | "time">("clicks");
   const effectiveMode: "clicks" | "time" =
     settings.timeLimitEnabled !== settings.clickLimitEnabled
@@ -44,8 +46,10 @@ export default function LimitsSection({ settings, update }: Props) {
     ? settings.clickLimitEnabled
     : settings.timeLimitEnabled;
   const activeUnavailableReason = isClicksMode
-    ? "Enable Click Limit to stop automatically after a set number of clicks."
-    : "Enable Time Limit to stop automatically after a set amount of time.";
+    ? t(
+        "Enable Click Limit to stop automatically after a set number of clicks.",
+      )
+    : t("Enable Time Limit to stop automatically after a set amount of time.");
 
   const handleModeChange = (nextMode: "clicks" | "time") => {
     const wasEnabled = activeEnabled;
@@ -102,7 +106,7 @@ export default function LimitsSection({ settings, update }: Props) {
               <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" />
             </svg>
           </span>
-          <span className="adv-card-title">Limits</span>
+          <span className="adv-card-title">{t("Limits")}</span>
         </div>
         <ToggleBtn value={activeEnabled} onChange={handleToggleChange} />
       </div>
@@ -112,7 +116,7 @@ export default function LimitsSection({ settings, update }: Props) {
         disabledReason={activeUnavailableReason}
       >
         <div className="adv-card-desc">
-          Stop automatically after a set number of clicks or time.
+          {t("Stop automatically after a set number of clicks or time.")}
         </div>
         <div
           className="adv-row"
@@ -132,7 +136,7 @@ export default function LimitsSection({ settings, update }: Props) {
                   min={SETTINGS_LIMITS.clickLimit.min}
                   style={{ width: "89px", textAlign: "right" }}
                 />
-                <span className="adv-unit">clicks</span>
+                <span className="adv-unit">{t("clicks")}</span>
               </div>
             ) : (
               <>
@@ -170,14 +174,14 @@ export default function LimitsSection({ settings, update }: Props) {
                 className={`adv-seg-btn ${isClicksMode ? "active" : ""}`}
                 onClick={() => handleModeChange("clicks")}
               >
-                Click
+                {t("Click")}
               </button>
               <button
                 type="button"
                 className={`adv-seg-btn ${!isClicksMode ? "active" : ""}`}
                 onClick={() => handleModeChange("time")}
               >
-                Time
+                {t("Time")}
               </button>
             </div>
           </div>

@@ -23,6 +23,7 @@ import {
   resolveBackgroundSource,
 } from "./backgroundMedia";
 import UpdateBanner from "./components/Updatebanner";
+import { I18nProvider, resolveLanguage, translate } from "./i18n";
 import {
   buildHotkeyWithHeld,
   canonicalizeHotkeyForBackend,
@@ -35,6 +36,7 @@ import {
   applyPresetSnapshot,
   buildPresetSnapshot,
   createPresetDefinition,
+  displayPresetName,
   sanitizePresetSnapshot,
   sanitizeSettings,
   sanitizePresetName,
@@ -189,6 +191,14 @@ function resolvePerPage<T>(settings: Settings, globalVal: T, field: string): T {
 export default function App() {
   const [tab, setTab] = useState<Tab>("simple");
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
+  const language = resolveLanguage(settings.language);
+  useEffect(() => {
+    document.documentElement.lang = language;
+    invoke("set_tray_labels", {
+      show: translate(language, "Show"),
+      quit: translate(language, "Quit"),
+    }).catch(() => {});
+  }, [language]);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [status, setStatus] = useState<ClickerStatus>(DEFAULT_STATUS);
   const [appInfo, setAppInfo] = useState<AppInfo>(DEFAULT_APP_INFO);
@@ -614,7 +624,9 @@ export default function App() {
     try {
       const filePath = await save({
         defaultPath: `${preset.name.replace(/[^a-zA-Z0-9_-]/g, "_")}.json`,
-        filters: [{ name: "Preset JSON", extensions: ["json"] }],
+        filters: [
+          { name: translate(language, "Preset JSON"), extensions: ["json"] },
+        ],
       });
       if (!filePath) {
         return false;
@@ -636,7 +648,9 @@ export default function App() {
     try {
       const filePath = await open({
         multiple: false,
-        filters: [{ name: "Preset JSON", extensions: ["json"] }],
+        filters: [
+          { name: translate(language, "Preset JSON"), extensions: ["json"] },
+        ],
       });
       if (!filePath) {
         return null;
@@ -1115,7 +1129,6 @@ export default function App() {
   ]);
 
   useEffect(() => {
-    document.documentElement.lang = "en";
     document.documentElement.dir = "ltr";
   }, []);
 
@@ -1673,122 +1686,130 @@ export default function App() {
   }
 
   return (
-    <div className="app-root" data-tab={tab}>
-      {backgroundMedia.videoSrc && (
-        <video
-          key={backgroundMedia.videoSrc}
-          className="app-bg-video"
-          src={backgroundMedia.videoSrc}
-          autoPlay
-          loop
-          muted
-          playsInline
-          preload="metadata"
-          aria-hidden="true"
-          onError={(e) => {
-            const ext = getExtension(backgroundMedia.videoSrc ?? "");
-            const legacy = isLegacyVideoExtension(ext);
-            error(
-              JSON.stringify({
-                source: "App.backgroundVideo",
-                error: `video load failed ext=${ext} legacy=${legacy}`,
-              }),
-            );
-            // Hide broken video so UI not black; user can pick MP4/WebM instead
-            const target = e.currentTarget as HTMLVideoElement;
-            target.style.display = "none";
-            target.pause();
-          }}
-          onLoadedData={(e) => {
-            // Ensure hidden video from previous error becomes visible again when src changes
-            (e.currentTarget as HTMLVideoElement).style.display = "";
-          }}
-        />
-      )}
-      <TitleBar
-        tab={tab}
-        setTab={handleTabChange}
-        running={status.running}
-        isAlwaysOnTop={settings.alwaysOnTop}
-        onToggleAlwaysOnTop={handleToggleAlwaysOnTop}
-        onRequestClose={handleWindowClose}
-        stopReason={status.stopReason}
-        statusBarHidden={!settings.statusBarEnabled}
-        masterOff={!status.masterAllowed}
-      />
-      {updateInfo && (
-        <UpdateBanner
-          key={`${updateInfo.currentVersion}:${updateInfo.latestVersion}`}
-          currentVersion={updateInfo.currentVersion}
-          latestVersion={updateInfo.latestVersion}
-          portable={appInfo.portable}
-        />
-      )}
-      <main className="panel-area">
-        {tab === "simple" && (
-          <SimplePanel settings={settings} update={updateSettings} />
-        )}
-        {tab === "advanced" && (
-          <AdvancedPanel settings={settings} update={updateSettings} />
-        )}
-        {tab === "click-points" && (
-          <ClickPointsPanel
-            settings={settings}
-            update={updateSettings}
-            showInfo={true}
-            running={status.running}
-            activeClickPointIndex={status.activeClickPointIndex}
-            activeClickPointTick={status.activeClickPointTick}
+    <I18nProvider language={language}>
+      <div className="app-root" data-tab={tab}>
+        {backgroundMedia.videoSrc && (
+          <video
+            key={backgroundMedia.videoSrc}
+            className="app-bg-video"
+            src={backgroundMedia.videoSrc}
+            autoPlay
+            loop
+            muted
+            playsInline
+            preload="metadata"
+            aria-hidden="true"
+            onError={(e) => {
+              const ext = getExtension(backgroundMedia.videoSrc ?? "");
+              const legacy = isLegacyVideoExtension(ext);
+              error(
+                JSON.stringify({
+                  source: "App.backgroundVideo",
+                  error: `video load failed ext=${ext} legacy=${legacy}`,
+                }),
+              );
+              // Hide broken video so UI not black; user can pick MP4/WebM instead
+              const target = e.currentTarget as HTMLVideoElement;
+              target.style.display = "none";
+              target.pause();
+            }}
+            onLoadedData={(e) => {
+              // Ensure hidden video from previous error becomes visible again when src changes
+              (e.currentTarget as HTMLVideoElement).style.display = "";
+            }}
           />
         )}
-        {tab === "zones" && (
-          <ZonesPanel
-            settings={settings}
-            update={updateSettings}
-            showInfo={true}
-          />
-        )}
-        {tab === "settings" && (
-          <SettingsPanel
-            settings={settings}
-            update={updateSettings}
-            running={status.running}
-            appInfo={appInfo}
-            onSavePreset={handleSavePreset}
-            onApplyPreset={handleApplyPreset}
-            onUpdatePreset={handleUpdatePreset}
-            onRenamePreset={handleRenamePreset}
-            onDeletePreset={handleDeletePreset}
-            onDuplicatePreset={handleDuplicatePreset}
-            onExportPreset={handleExportPreset}
-            onImportPreset={handleImportPreset}
-            onToggleAlwaysOnTop={handleToggleAlwaysOnTop}
-            onReset={handleResetSettings}
-            updateCheckStatus={updateCheckStatus}
-            onCheckForUpdate={handleCheckForUpdate}
-            initialSettingsTab={settingsInitialTab}
-            onInitialTabConsumed={handleInitialTabConsumed}
-          />
-        )}
-      </main>
-      {settings.statusBarEnabled && (
-        <StatusBar
-          activePresetName={activePreset?.name ?? null}
-          version={appInfo.version}
-          stopReason={status.stopReason}
-          warning={status.warning}
+        <TitleBar
+          tab={tab}
+          setTab={handleTabChange}
           running={status.running}
-          paused={status.paused}
-          clickCount={status.clickCount}
-          activeClickPointIndex={status.activeClickPointIndex}
-          totalClickPoints={settings.clickPoints.length}
-          clickLimit={settings.clickLimit}
-          clickLimitEnabled={settings.clickLimitEnabled}
-          timeLimitMs={computeTimeLimitMs()}
-          onGoToPresets={handleGoToPresets}
-          onGoToVersionInfo={handleGoToVersionInfo}
+          isAlwaysOnTop={settings.alwaysOnTop}
+          onToggleAlwaysOnTop={handleToggleAlwaysOnTop}
+          onRequestClose={handleWindowClose}
+          stopReason={status.stopReason}
+          statusBarHidden={!settings.statusBarEnabled}
+          masterOff={!status.masterAllowed}
         />
-      )}
-    </div>
+        {updateInfo && (
+          <UpdateBanner
+            key={`${updateInfo.currentVersion}:${updateInfo.latestVersion}`}
+            currentVersion={updateInfo.currentVersion}
+            latestVersion={updateInfo.latestVersion}
+            portable={appInfo.portable}
+          />
+        )}
+        <main className="panel-area">
+          {tab === "simple" && (
+            <SimplePanel settings={settings} update={updateSettings} />
+          )}
+          {tab === "advanced" && (
+            <AdvancedPanel settings={settings} update={updateSettings} />
+          )}
+          {tab === "click-points" && (
+            <ClickPointsPanel
+              settings={settings}
+              update={updateSettings}
+              showInfo={true}
+              running={status.running}
+              activeClickPointIndex={status.activeClickPointIndex}
+              activeClickPointTick={status.activeClickPointTick}
+            />
+          )}
+          {tab === "zones" && (
+            <ZonesPanel
+              settings={settings}
+              update={updateSettings}
+              showInfo={true}
+            />
+          )}
+          {tab === "settings" && (
+            <SettingsPanel
+              settings={settings}
+              update={updateSettings}
+              running={status.running}
+              appInfo={appInfo}
+              onSavePreset={handleSavePreset}
+              onApplyPreset={handleApplyPreset}
+              onUpdatePreset={handleUpdatePreset}
+              onRenamePreset={handleRenamePreset}
+              onDeletePreset={handleDeletePreset}
+              onDuplicatePreset={handleDuplicatePreset}
+              onExportPreset={handleExportPreset}
+              onImportPreset={handleImportPreset}
+              onToggleAlwaysOnTop={handleToggleAlwaysOnTop}
+              onReset={handleResetSettings}
+              updateCheckStatus={updateCheckStatus}
+              onCheckForUpdate={handleCheckForUpdate}
+              initialSettingsTab={settingsInitialTab}
+              onInitialTabConsumed={handleInitialTabConsumed}
+            />
+          )}
+        </main>
+        {settings.statusBarEnabled && (
+          <StatusBar
+            activePresetName={
+              activePreset
+                ? displayPresetName(activePreset, (text, vars) =>
+                    translate(language, text, vars),
+                  )
+                : null
+            }
+            version={appInfo.version}
+            stopReason={status.stopReason}
+            warning={status.warning}
+            running={status.running}
+            paused={status.paused}
+            clickCount={status.clickCount}
+            activeClickPointIndex={status.activeClickPointIndex}
+            totalClickPoints={settings.clickPoints.length}
+            clickLimit={settings.clickLimit}
+            clickLimitEnabled={settings.clickLimitEnabled}
+            timeLimitMs={computeTimeLimitMs()}
+            onGoToPresets={handleGoToPresets}
+            onGoToVersionInfo={handleGoToVersionInfo}
+          />
+        )}
+      </div>
+    </I18nProvider>
   );
 }

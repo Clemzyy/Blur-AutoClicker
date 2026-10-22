@@ -1,4 +1,5 @@
 import { useRef } from "react";
+import { useTranslation } from "../../../../i18n";
 import type { Settings } from "../../../../store";
 import { conflictsWithAutoPressKey } from "../../../../hotkeys";
 import HotkeyCaptureInput, {
@@ -12,6 +13,7 @@ interface Props {
 }
 
 export default function HotkeySection({ settings, update }: Props) {
+  const { t } = useTranslation();
   const hotkeyInputRef = useRef<HotkeyCaptureInputHandle>(null);
 
   const hasConflict =
@@ -21,7 +23,7 @@ export default function HotkeySection({ settings, update }: Props) {
       settings.keyboardKey,
       settings.keyboardKeyCase === "upper",
     );
-  const hotkeyConflicts = hasConflict ? ["Auto-press key"] : [];
+  const hotkeyConflicts = hasConflict ? [t("Auto-press key")] : [];
 
   return (
     <div className="adv-sectioncontainer adv-basic-card">
@@ -49,7 +51,7 @@ export default function HotkeySection({ settings, update }: Props) {
               <path d="M15 6v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3V6a3 3 0 1 0-3 3h12a3 3 0 1 0-3-3" />
             </svg>
           </span>
-          <span className="adv-card-title">Hotkey</span>
+          <span className="adv-card-title">{t("Hotkey")}</span>
         </div>
         <div className="adv-seg-group">
           {(["Toggle", "Hold"] as const).map((clickModeOption) => (
@@ -58,7 +60,7 @@ export default function HotkeySection({ settings, update }: Props) {
               className={`adv-seg-btn ${settings.mode === clickModeOption ? "active" : ""}`}
               onClick={() => update({ mode: clickModeOption })}
             >
-              {clickModeOption}
+              {t(clickModeOption)}
             </button>
           ))}
         </div>
@@ -66,8 +68,8 @@ export default function HotkeySection({ settings, update }: Props) {
       <CardDivider />
       <div className="adv-card-desc">
         {settings.mode === "Hold"
-          ? "Hold the hotkey to click. Release to stop."
-          : "Press the hotkey to toggle the clicker on and off."}
+          ? t("Hold the hotkey to click. Release to stop.")
+          : t("Press the hotkey to toggle the clicker on and off.")}
       </div>
       <div className="adv-row" style={{ gap: 8 }}>
         <div className="adv-textbox" style={{ flex: 1 }}>
@@ -91,7 +93,7 @@ export default function HotkeySection({ settings, update }: Props) {
           className="adv-hotkey-edit-btn"
           onClick={() => hotkeyInputRef.current?.startListening()}
         >
-          Edit Hotkey
+          {t("Edit Hotkey")}
         </button>
       </div>
     </div>

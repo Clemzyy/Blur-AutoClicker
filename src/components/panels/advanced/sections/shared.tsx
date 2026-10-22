@@ -19,6 +19,7 @@ import {
   parseDecimalLocale,
   formatDecimalLocale,
 } from "../../../../numberInput";
+import { useTranslation } from "../../../../i18n";
 import UnavailableReason from "../../../UnavailableReason";
 
 import "./shared.css";
@@ -37,6 +38,7 @@ const ToggleBtn = memo(
     disabled?: boolean;
     disabledReason?: string;
   }) {
+    const { t } = useTranslation();
     useEffect(() => {
       if (disabled && value) {
         onChange(false);
@@ -50,14 +52,14 @@ const ToggleBtn = memo(
           onClick={() => !disabled && onChange(false)}
           disabled={disabled}
         >
-          Off
+          {t("Off")}
         </button>
         <button
           className={`adv-toggle-btn adv-toggle-on ${value ? "active" : ""} ${disabled ? "adv-disabled" : ""}`}
           onClick={() => !disabled && onChange(true)}
           disabled={disabled}
         >
-          On
+          {t("On")}
         </button>
       </div>
     );
@@ -87,12 +89,13 @@ export function Disableable({
   disabledReason?: string;
   children: ReactNode;
 }) {
+  const { t } = useTranslation();
   const content = (
     <div className="adv-disabled-container">
       <div className={enabled ? "" : "adv-disabled-content"}>{children}</div>
       {!enabled && (
         <div className="adv-disabled-overlay">
-          <span className="adv-disabled-label">Disabled</span>
+          <span className="adv-disabled-label">{t("Disabled")}</span>
         </div>
       )}
     </div>
@@ -394,6 +397,7 @@ export function AdvDropdown({
   allowWindowOverflow?: boolean;
   windowOverflowBottom?: number;
 }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [positioned, setPositioned] = useState(false);
   const [placement, setPlacement] = useState<"below" | "above">("below");
@@ -506,7 +510,7 @@ export function AdvDropdown({
     }
   };
 
-  const activeLabel = options.find((o) => o.value === value)?.label ?? value;
+  const activeLabel = t(options.find((o) => o.value === value)?.label ?? value);
 
   return (
     <div className="adv-dropdown" ref={ref} onWheel={handleWheel}>
@@ -554,7 +558,7 @@ export function AdvDropdown({
                   setOpen(false);
                 }}
               >
-                {option.label}
+                {t(option.label)}
               </button>
             ))}
           </div>,

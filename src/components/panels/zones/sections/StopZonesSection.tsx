@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { msg, useTranslation, withElements } from "../../../../i18n";
 import type { Settings, StopZone } from "../../../../store";
 import { createStopZoneId } from "../../../../settingsSchema";
 import { error } from "@tauri-apps/plugin-log";
 import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
+import { emitTo, listen } from "@tauri-apps/api/event";
 import {
   NumInput,
   AdvDropdown,
@@ -26,12 +27,13 @@ interface StopZonePickedPayload {
 }
 
 const ACTION_OPTIONS = [
-  { value: "stop", label: "Stop" },
-  { value: "pause", label: "Pause" },
-  { value: "start", label: "Start" },
+  { value: "stop", label: msg("Stop") },
+  { value: "pause", label: msg("Pause") },
+  { value: "start", label: msg("Start") },
 ] as const;
 
 export default function StopZonesSection({ settings, update }: Props) {
+  const { language, t } = useTranslation();
   const [drawingIndex, setDrawingIndex] = useState<number | null>(null);
   const [showBottomFade, setShowBottomFade] = useState(false);
   const updateRef = useRef(update);
@@ -96,22 +98,27 @@ export default function StopZonesSection({ settings, update }: Props) {
     };
   }, []);
 
-  const startDraw = useCallback(async (index: number) => {
-    pendingIndexRef.current = index;
-    setDrawingIndex(index);
-    try {
-      await invoke("start_custom_stop_zone_pick");
-    } catch (err) {
-      pendingIndexRef.current = null;
-      setDrawingIndex(null);
-      error(
-        JSON.stringify({
-          source: "StopZonesSection.startDraw",
-          error: String(err),
-        }),
-      );
-    }
-  }, []);
+  const startDraw = useCallback(
+    async (index: number) => {
+      pendingIndexRef.current = index;
+      setDrawingIndex(index);
+      try {
+        // The overlay is a separate page: give it the language for its hints.
+        await emitTo("overlay", "overlay-language", language).catch(() => {});
+        await invoke("start_custom_stop_zone_pick");
+      } catch (err) {
+        pendingIndexRef.current = null;
+        setDrawingIndex(null);
+        error(
+          JSON.stringify({
+            source: "StopZonesSection.startDraw",
+            error: String(err),
+          }),
+        );
+      }
+    },
+    [language],
+  );
 
   const cancelDraw = useCallback(async () => {
     pendingIndexRef.current = null;
@@ -208,7 +215,7 @@ export default function StopZonesSection({ settings, update }: Props) {
   return (
     <div className="adv-sectioncontainer adv-stop-zones-card">
       <div className="adv-card-header">
-        <span className="adv-card-title">Custom Stop Zones</span>
+        <span className="adv-card-title">{t("Custom Stop Zones")}</span>
         <ToggleBtn
           value={settings.stopZonesEnabled}
           onChange={(v) => {
@@ -221,8 +228,9 @@ export default function StopZonesSection({ settings, update }: Props) {
       </div>
       <CardDivider />
       <div className="adv-card-desc">
-        Draw zones on screen. The clicker stops, pauses, or starts whenever your
-        cursor moves inside a zone.
+        {t(
+          "Draw zones on screen. The clicker stops, pauses, or starts whenever your cursor moves inside a zone.",
+        )}
       </div>
       <Disableable enabled={settings.stopZonesEnabled}>
         <div className="adv-stop-zone-body">
@@ -234,7 +242,7 @@ export default function StopZonesSection({ settings, update }: Props) {
                   className="adv-secondary-btn"
                   onClick={addZone}
                 >
-                  Add Zone
+                  {t("Add Zone")}
                 </button>
               </div>
             )}
@@ -254,7 +262,7 @@ export default function StopZonesSection({ settings, update }: Props) {
                       }}
                       onClick={addZone}
                     >
-                      Add Zone
+                      {t("Add Zone")}
                     </button>
                     <div className="adv-zones-empty-icon">
                       <svg
@@ -280,11 +288,19 @@ export default function StopZonesSection({ settings, update }: Props) {
                         <line x1="9" y1="3" x2="9" y2="21" />
                       </svg>
                     </div>
-                    <div className="adv-zones-empty-title">No zones yet</div>
+                    <div className="adv-zones-empty-title">
+                      {t("No zones yet")}
+                    </div>
                     <div className="adv-zones-empty-hint">
-                      Click <strong>Add Zone</strong> above, then click{" "}
-                      <strong>Draw</strong> on a row to define its area on
-                      screen.
+                      {withElements(
+                        t(
+                          "Click {addZone} above, then click {edit} on a row to define its area on screen.",
+                        ),
+                        {
+                          addZone: <strong>{t("Add Zone")}</strong>,
+                          edit: <strong>{t("Edit")}</strong>,
+                        },
+                      )}
                     </div>
                   </div>
                 ) : (
@@ -312,7 +328,7 @@ export default function StopZonesSection({ settings, update }: Props) {
                         />
                       </label>
                       <label className="adv-numbox-sm adv-zone-coord">
-                        <span className="adv-unit">W</span>
+                        <span className="adv-unit">{t("W")}</span>
                         <NumInput
                           hoverWheel={false}
                           value={zone.width}
@@ -350,14 +366,14 @@ export default function StopZonesSection({ settings, update }: Props) {
                             : startDraw(index))
                         }
                       >
-                        {drawingIndex === index ? "Cancel" : "Edit"}
+                        {drawingIndex === index ? t("Cancel") : t("Edit")}
                       </button>
                       <button
                         type="button"
                         className="adv-click-points-delete"
                         onClick={() => removeZone(index)}
-                        aria-label="Delete"
-                        title="Delete"
+                        aria-label={t("Delete")}
+                        title={t("Delete")}
                       >
                         <svg
                           width="16"

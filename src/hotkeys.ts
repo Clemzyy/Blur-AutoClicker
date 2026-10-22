@@ -210,6 +210,25 @@ export const defaultHotkeyLabels: HotkeyDisplayLabels = {
   },
 };
 
+// Display labels in the interface language; stored hotkeys keep the English
+// tokens, so changing the language never changes a saved binding.
+export function translatedHotkeyLabels(
+  t: (text: string) => string,
+  empty: string = defaultHotkeyLabels.empty,
+): HotkeyDisplayLabels {
+  const translateValues = <T extends Partial<Record<string, string>>>(
+    labels: T,
+  ) =>
+    Object.fromEntries(
+      Object.entries(labels).map(([key, label]) => [key, label && t(label)]),
+    ) as T;
+  return {
+    empty: t(empty),
+    modifiers: translateValues(defaultHotkeyLabels.modifiers),
+    keys: translateValues(defaultHotkeyLabels.keys),
+  };
+}
+
 let layoutMapPromise: Promise<LayoutMapLike | null> | null = null;
 
 function normalizeModifierToken(token: string): string | null {

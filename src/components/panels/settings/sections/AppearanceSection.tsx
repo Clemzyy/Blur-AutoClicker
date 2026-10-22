@@ -7,6 +7,7 @@ import {
   PLAYABLE_VIDEO_EXTENSIONS,
   VIDEO_EXTENSIONS,
 } from "../../../../backgroundMedia";
+import { LANGUAGE_OPTIONS, msg, useTranslation } from "../../../../i18n";
 import { DEFAULT_ACCENT_COLOR } from "../../../../settingsSchema";
 import type { IconColor, IconTheme } from "../../../../settingsSchema";
 import type { Settings } from "../../../../store";
@@ -14,25 +15,25 @@ import { SettingsCard } from "./shared";
 
 const MEDIA_FILTERS = [
   {
-    name: "All Media",
+    name: msg("All Media"),
     extensions: [...IMAGE_EXTENSIONS, ...VIDEO_EXTENSIONS] as string[],
   },
   {
-    name: "Images",
+    name: msg("Images"),
     extensions: [...IMAGE_EXTENSIONS] as string[],
   },
   {
-    name: "Videos (reliable)",
+    name: msg("Videos (reliable)"),
     extensions: [...PLAYABLE_VIDEO_EXTENSIONS] as string[],
   },
 ];
 
 const PAGES = [
-  { suffix: "Simple", label: "Simple Page" },
-  { suffix: "Advanced", label: "Advanced Page" },
-  { suffix: "Zones", label: "Zones Page" },
-  { suffix: "ClickPoints", label: "Click Points Page" },
-  { suffix: "Settings", label: "Settings Page" },
+  { suffix: "Simple", label: msg("Simple Page") },
+  { suffix: "Advanced", label: msg("Advanced Page") },
+  { suffix: "Zones", label: msg("Zones Page") },
+  { suffix: "ClickPoints", label: msg("Click Points Page") },
+  { suffix: "Settings", label: msg("Settings Page") },
 ] as const;
 
 interface Props {
@@ -49,6 +50,7 @@ function PageAppearanceControls({
   update: (patch: Partial<Settings>) => void;
   suffix: string;
 }) {
+  const { t } = useTranslation();
   const bgImageKey = `backgroundImage${suffix}` as keyof Settings;
   const bgOpacityKey = `backgroundOpacity${suffix}` as keyof Settings;
   const winOpacityKey = `windowOpacity${suffix}` as keyof Settings;
@@ -65,7 +67,13 @@ function PageAppearanceControls({
 
   const handleBrowse = async () => {
     try {
-      const selected = await open({ multiple: false, filters: MEDIA_FILTERS });
+      const selected = await open({
+        multiple: false,
+        filters: MEDIA_FILTERS.map((filter) => ({
+          ...filter,
+          name: t(filter.name),
+        })),
+      });
       if (selected) {
         update({ [bgImageKey]: selected as string });
       }
@@ -83,10 +91,11 @@ function PageAppearanceControls({
     <>
       <div className="settings-row">
         <div className="settings-label-group">
-          <span className="settings-label">Background Media</span>
+          <span className="settings-label">{t("Background Media")}</span>
           <span className="settings-sublabel">
-            Path or URL to an image or video. Images support transparency.
-            Videos auto-loop muted.
+            {t(
+              "Path or URL to an image or video. Images support transparency. Videos auto-loop muted.",
+            )}
           </span>
         </div>
         <div className="settings-bg-image-row">
@@ -95,18 +104,20 @@ function PageAppearanceControls({
             type="text"
             value={bgImage}
             onChange={(e) => update({ [bgImageKey]: e.target.value })}
-            placeholder="https://example.com/image.png or C:\Videos\loop.mp4"
+            placeholder={t(
+              "https://example.com/image.png or C:\\Videos\\loop.mp4",
+            )}
           />
           <div className="settings-bg-buttons">
             <button className="settings-btn-secondary" onClick={handleBrowse}>
-              Browse
+              {t("Browse")}
             </button>
             <button
               className="settings-btn-danger settings-btn-danger--compact"
               onClick={() => update({ [bgImageKey]: "" })}
               disabled={!bgImage}
             >
-              Remove
+              {t("Remove")}
             </button>
           </div>
         </div>
@@ -119,8 +130,9 @@ function PageAppearanceControls({
                   className="settings-sublabel"
                   style={{ color: "var(--accent-yellow)" }}
                 >
-                  MOV/M4V/AVI/MKV often fail. If video stays black, convert it
-                  to mp4.
+                  {t(
+                    "MOV/M4V/AVI/MKV often fail. If video stays black, convert it to mp4.",
+                  )}
                 </span>
               </div>
             );
@@ -131,9 +143,9 @@ function PageAppearanceControls({
 
       <div className="settings-row">
         <div className="settings-label-group">
-          <span className="settings-label">Background Opacity</span>
+          <span className="settings-label">{t("Background Opacity")}</span>
           <span className="settings-sublabel">
-            Transparency of the app window background.
+            {t("Transparency of the app window background.")}
           </span>
         </div>
         <div className="settings-opacity-controls">
@@ -153,9 +165,11 @@ function PageAppearanceControls({
 
       <div className="settings-row">
         <div className="settings-label-group">
-          <span className="settings-label">Background Media Opacity</span>
+          <span className="settings-label">
+            {t("Background Media Opacity")}
+          </span>
           <span className="settings-sublabel">
-            Transparency of the background image or video.
+            {t("Transparency of the background image or video.")}
           </span>
         </div>
         <div className="settings-opacity-controls">
@@ -174,8 +188,10 @@ function PageAppearanceControls({
 
       <div className="settings-row">
         <div className="settings-label-group">
-          <span className="settings-label">Panel Opacity</span>
-          <span className="settings-sublabel">Transparency of the panel.</span>
+          <span className="settings-label">{t("Panel Opacity")}</span>
+          <span className="settings-sublabel">
+            {t("Transparency of the panel.")}
+          </span>
         </div>
         <div className="settings-opacity-controls">
           <input
@@ -194,9 +210,9 @@ function PageAppearanceControls({
 
       <div className="settings-row">
         <div className="settings-label-group">
-          <span className="settings-label">Background Blur</span>
+          <span className="settings-label">{t("Background Blur")}</span>
           <span className="settings-sublabel">
-            Blur the background media itself, across the whole UI.
+            {t("Blur the background media itself, across the whole UI.")}
           </span>
         </div>
         <div className="settings-opacity-controls">
@@ -215,9 +231,9 @@ function PageAppearanceControls({
 
       <div className="settings-row">
         <div className="settings-label-group">
-          <span className="settings-label">Panel Blur</span>
+          <span className="settings-label">{t("Panel Blur")}</span>
           <span className="settings-sublabel">
-            Blur effect behind the panel.
+            {t("Blur effect behind the panel.")}
           </span>
         </div>
         <div className="settings-opacity-controls">
@@ -237,6 +253,7 @@ function PageAppearanceControls({
 }
 
 export default function AppearanceSection({ settings, update }: Props) {
+  const { t } = useTranslation();
   const isPerPage = settings.perPageAppearance;
 
   const handleModeChange = (individual: boolean) => {
@@ -244,12 +261,34 @@ export default function AppearanceSection({ settings, update }: Props) {
   };
 
   const themeAccent = (
-    <SettingsCard title="Theme & Accent" description="Applied to all pages.">
+    <SettingsCard
+      title={t("Theme & Accent")}
+      description={t("Applied to all pages.")}
+    >
       <div className="settings-row">
         <div className="settings-label-group">
-          <span className="settings-label">Theme</span>
+          <span className="settings-label">{t("Language")}</span>
           <span className="settings-sublabel">
-            Choose between dark and light mode.
+            {t("System follows the Windows display language.")}
+          </span>
+        </div>
+        <div className="settings-seg-group">
+          {LANGUAGE_OPTIONS.map((option) => (
+            <button
+              key={option.value}
+              className={`settings-seg-btn ${settings.language === option.value ? "active" : ""}`}
+              onClick={() => update({ language: option.value })}
+            >
+              {option.value === "auto" ? t(option.label) : option.label}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="settings-row">
+        <div className="settings-label-group">
+          <span className="settings-label">{t("Theme")}</span>
+          <span className="settings-sublabel">
+            {t("Choose between dark and light mode.")}
           </span>
         </div>
         <div className="settings-seg-group">
@@ -259,15 +298,17 @@ export default function AppearanceSection({ settings, update }: Props) {
               className={`settings-seg-btn ${settings.theme === theme ? "active" : ""}`}
               onClick={() => update({ theme })}
             >
-              {theme === "dark" ? "Dark" : "Light"}
+              {theme === "dark" ? t("Dark") : t("Light")}
             </button>
           ))}
         </div>
       </div>
       <div className="settings-row">
         <div className="settings-label-group">
-          <span className="settings-label">Accent Color</span>
-          <span className="settings-sublabel">The primary accent color.</span>
+          <span className="settings-label">{t("Accent Color")}</span>
+          <span className="settings-sublabel">
+            {t("The primary accent color.")}
+          </span>
         </div>
         <div className="settings-color-controls">
           <label className="settings-color-picker">
@@ -285,7 +326,7 @@ export default function AppearanceSection({ settings, update }: Props) {
             onClick={() => update({ accentColor: DEFAULT_ACCENT_COLOR })}
             disabled={settings.accentColor === DEFAULT_ACCENT_COLOR}
           >
-            Reset
+            {t("Reset")}
           </button>
         </div>
       </div>
@@ -297,32 +338,34 @@ export default function AppearanceSection({ settings, update }: Props) {
       {themeAccent}
 
       <SettingsCard
-        title="Appearance Mode"
-        description="Use one style for all pages, or customize each page individually."
+        title={t("Appearance Mode")}
+        description={t(
+          "Use one style for all pages, or customize each page individually.",
+        )}
       >
         <div className="settings-row">
           <div className="settings-label-group">
-            <span className="settings-label">Mode</span>
+            <span className="settings-label">{t("Mode")}</span>
           </div>
           <div className="settings-seg-group">
             <button
               className={`settings-seg-btn ${!isPerPage ? "active" : ""}`}
               onClick={() => handleModeChange(false)}
             >
-              Global
+              {t("Global")}
             </button>
             <button
               className={`settings-seg-btn ${isPerPage ? "active" : ""}`}
               onClick={() => handleModeChange(true)}
             >
-              Individual
+              {t("Individual")}
             </button>
           </div>
         </div>
       </SettingsCard>
 
       {!isPerPage ? (
-        <SettingsCard title="Page Style">
+        <SettingsCard title={t("Page Style")}>
           <PageAppearanceControls
             settings={settings}
             update={update}
@@ -332,7 +375,7 @@ export default function AppearanceSection({ settings, update }: Props) {
       ) : (
         PAGES.map((page) => (
           <section className="settings-card" key={page.suffix}>
-            <span className="settings-page-header">{page.label}</span>
+            <span className="settings-page-header">{t(page.label)}</span>
             <div className="settings-card-content">
               <PageAppearanceControls
                 settings={settings}
@@ -345,14 +388,14 @@ export default function AppearanceSection({ settings, update }: Props) {
       )}
 
       <SettingsCard
-        title="Taskbar Icon"
-        description="Control how the taskbar and tray icon looks."
+        title={t("Taskbar Icon")}
+        description={t("Control how the taskbar and tray icon looks.")}
       >
         <div className="settings-row">
           <div className="settings-label-group">
-            <span className="settings-label">Active Icon</span>
+            <span className="settings-label">{t("Active Icon")}</span>
             <span className="settings-sublabel">
-              Show different icon when clicker is active.
+              {t("Show different icon when clicker is active.")}
             </span>
           </div>
           <div className="settings-toggle-wrapper">
@@ -369,9 +412,9 @@ export default function AppearanceSection({ settings, update }: Props) {
 
         <div className="settings-row">
           <div className="settings-label-group">
-            <span className="settings-label">Icon Theme</span>
+            <span className="settings-label">{t("Icon Theme")}</span>
             <span className="settings-sublabel">
-              Which themed icons to use. Auto follows app theme.
+              {t("Which themed icons to use. Auto follows app theme.")}
             </span>
           </div>
           <div className="settings-seg-group">
@@ -381,7 +424,11 @@ export default function AppearanceSection({ settings, update }: Props) {
                 className={`settings-seg-btn ${settings.taskbarIconTheme === opt ? "active" : ""}`}
                 onClick={() => update({ taskbarIconTheme: opt })}
               >
-                {opt === "auto" ? "Auto" : opt === "dark" ? "Dark" : "Light"}
+                {opt === "auto"
+                  ? t("Auto")
+                  : opt === "dark"
+                    ? t("Dark")
+                    : t("Light")}
               </button>
             ))}
           </div>
@@ -391,9 +438,9 @@ export default function AppearanceSection({ settings, update }: Props) {
           className={`settings-row ${!settings.taskbarIconEnabled ? "settings-row--disabled" : ""}`}
         >
           <div className="settings-label-group">
-            <span className="settings-label">Icon Color</span>
+            <span className="settings-label">{t("Icon Color")}</span>
             <span className="settings-sublabel">
-              Use accent color or default icon colors.
+              {t("Use accent color or default icon colors.")}
             </span>
           </div>
           <div className="settings-seg-group">
@@ -406,7 +453,7 @@ export default function AppearanceSection({ settings, update }: Props) {
                   update({ taskbarIconColor: opt })
                 }
               >
-                {opt === "theme" ? "Theme" : "Default"}
+                {opt === "theme" ? t("Theme") : t("Default")}
               </button>
             ))}
           </div>
@@ -414,14 +461,14 @@ export default function AppearanceSection({ settings, update }: Props) {
       </SettingsCard>
 
       <SettingsCard
-        title="Status Bar"
-        description="Show the status bar at the bottom of the window."
+        title={t("Status Bar")}
+        description={t("Show the status bar at the bottom of the window.")}
       >
         <div className="settings-row">
           <div className="settings-label-group">
-            <span className="settings-label">Footer</span>
+            <span className="settings-label">{t("Footer")}</span>
             <span className="settings-sublabel">
-              Shows active preset, version, and stop reasons.
+              {t("Shows active preset, version, and stop reasons.")}
             </span>
           </div>
           <div className="settings-toggle-wrapper">

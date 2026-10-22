@@ -1,3 +1,4 @@
+import { msg, useTranslation } from "../../../../i18n";
 import type { Settings } from "../../../../store";
 import KeyCaptureInput from "../../../KeyCaptureInput";
 import { SettingsCard } from "./shared";
@@ -8,11 +9,11 @@ interface Props {
 }
 
 const PAGES = [
-  { key: "keybindSimple" as const, label: "Simple" },
-  { key: "keybindAdvanced" as const, label: "Advanced" },
-  { key: "keybindZones" as const, label: "Zones" },
-  { key: "keybindClickPoints" as const, label: "Click Points" },
-  { key: "keybindSettings" as const, label: "Settings" },
+  { key: "keybindSimple" as const, label: msg("Simple") },
+  { key: "keybindAdvanced" as const, label: msg("Advanced") },
+  { key: "keybindZones" as const, label: msg("Zones") },
+  { key: "keybindClickPoints" as const, label: msg("Click Points") },
+  { key: "keybindSettings" as const, label: msg("Settings") },
 ];
 
 const TOGGLE_GROUPS: {
@@ -20,90 +21,94 @@ const TOGGLE_GROUPS: {
   items: { key: keyof Settings; label: string; sublabel: string }[];
 }[] = [
   {
-    title: "Advanced",
+    title: msg("Advanced"),
     items: [
       {
         key: "keybindMode",
-        label: "Click Mode",
-        sublabel: "Cycle Toggle / Hold.",
+        label: msg("Click Mode"),
+        sublabel: msg("Cycle Toggle / Hold."),
       },
       {
         key: "keybindInputType",
-        label: "Input Type",
-        sublabel: "Cycle Mouse / Keyboard.",
+        label: msg("Input Type"),
+        sublabel: msg("Cycle Mouse / Keyboard."),
       },
       {
         key: "keybindDoubleClick",
-        label: "Double Click",
-        sublabel: "Toggle on or off.",
+        label: msg("Double Click"),
+        sublabel: msg("Toggle on or off."),
       },
       {
         key: "keybindDutyCycleMode",
-        label: "Duty Cycle",
-        sublabel: "Cycle Click / Hold.",
+        label: msg("Duty Cycle"),
+        sublabel: msg("Cycle Click / Hold."),
       },
       {
         key: "keybindSpeedRandomization",
-        label: "Speed Randomization",
-        sublabel: "Toggle on or off.",
+        label: msg("Speed Randomization"),
+        sublabel: msg("Toggle on or off."),
       },
       {
         key: "keybindLimits",
-        label: "Limits",
-        sublabel: "Toggle the active click/time limit.",
+        label: msg("Limits"),
+        sublabel: msg("Toggle the active click/time limit."),
       },
     ],
   },
   {
-    title: "Zones",
+    title: msg("Zones"),
     items: [
       {
         key: "keybindCornerStop",
-        label: "Corner Stop",
-        sublabel: "Toggle on or off.",
+        label: msg("Corner Stop"),
+        sublabel: msg("Toggle on or off."),
       },
       {
         key: "keybindEdgeStop",
-        label: "Edge Stop",
-        sublabel: "Toggle on or off.",
+        label: msg("Edge Stop"),
+        sublabel: msg("Toggle on or off."),
       },
       {
         key: "keybindStopZones",
-        label: "Custom Stop Zones",
-        sublabel: "Toggle on or off.",
+        label: msg("Custom Stop Zones"),
+        sublabel: msg("Toggle on or off."),
       },
     ],
   },
   {
-    title: "Click Points",
+    title: msg("Click Points"),
     items: [
       {
         key: "keybindToggleClickPoints",
-        label: "Click Points",
-        sublabel: "Toggle on or off.",
+        label: msg("Click Points"),
+        sublabel: msg("Toggle on or off."),
       },
       {
         key: "keybindStopWhenComplete",
-        label: "Stop When Complete",
-        sublabel: "Toggle on or off.",
+        label: msg("Stop When Complete"),
+        sublabel: msg("Toggle on or off."),
       },
     ],
   },
 ];
 
 export default function KeybindsSection({ settings, update }: Props) {
+  const { t } = useTranslation();
   return (
     <>
       <SettingsCard
-        title="Master Switch"
-        description="Bind a key that globally enables or disables the autoclicker. When off, the main activation keybind will not start it. Empty by default (always allowed)."
+        title={t("Master Switch")}
+        description={t(
+          "Bind a key that globally enables or disables the autoclicker. When off, the main activation keybind will not start it. Empty by default (always allowed).",
+        )}
       >
         <div className="settings-row">
           <div className="settings-label-group">
-            <span className="settings-label">Master Key</span>
+            <span className="settings-label">{t("Master Key")}</span>
             <span className="settings-sublabel">
-              Toggle disables/enables on press. Hold keeps it enabled while
-              held.
+              {t(
+                "Toggle disables/enables on press. Hold keeps it enabled while held.",
+              )}
             </span>
           </div>
           <KeyCaptureInput
@@ -114,9 +119,11 @@ export default function KeybindsSection({ settings, update }: Props) {
         </div>
         <div className="settings-row">
           <div className="settings-label-group">
-            <span className="settings-label">Master Key Mode</span>
+            <span className="settings-label">{t("Master Key Mode")}</span>
             <span className="settings-sublabel">
-              Toggle: press to flip. Hold: autoclicker runs only while held.
+              {t(
+                "Toggle: press to flip. Hold: autoclicker runs only while held.",
+              )}
             </span>
           </div>
           <div className="settings-seg-group">
@@ -125,29 +132,31 @@ export default function KeybindsSection({ settings, update }: Props) {
               className={`settings-seg-btn ${settings.masterKeybindMode === "toggle" ? "active" : ""}`}
               onClick={() => update({ masterKeybindMode: "toggle" })}
             >
-              Toggle
+              {t("Toggle")}
             </button>
             <button
               type="button"
               className={`settings-seg-btn ${settings.masterKeybindMode === "hold" ? "active" : ""}`}
               onClick={() => update({ masterKeybindMode: "hold" })}
             >
-              Hold
+              {t("Hold")}
             </button>
           </div>
         </div>
       </SettingsCard>
 
       <SettingsCard
-        title="Keybinds"
-        description="Set a keyboard shortcut for each page. Press the key you want to bind."
+        title={t("Keybinds")}
+        description={t(
+          "Set a keyboard shortcut for each page. Press the key you want to bind.",
+        )}
       >
         {PAGES.map((page) => (
           <div className="settings-row" key={page.key}>
             <div className="settings-label-group">
-              <span className="settings-label">{page.label}</span>
+              <span className="settings-label">{t(page.label)}</span>
               <span className="settings-sublabel">
-                Switch to the {page.label} page.
+                {t("Switch to the {page} page.", { page: t(page.label) })}
               </span>
             </div>
             <KeyCaptureInput
@@ -162,14 +171,16 @@ export default function KeybindsSection({ settings, update }: Props) {
       {TOGGLE_GROUPS.map((group) => (
         <SettingsCard
           key={group.title}
-          title={`${group.title} Toggle Keybinds`}
-          description="Bind a key to flip a setting from anywhere in the app. Empty by default."
+          title={t("{group} Toggle Keybinds", { group: t(group.title) })}
+          description={t(
+            "Bind a key to flip a setting from anywhere in the app. Empty by default.",
+          )}
         >
           {group.items.map((item) => (
             <div className="settings-row" key={item.key}>
               <div className="settings-label-group">
-                <span className="settings-label">{item.label}</span>
-                <span className="settings-sublabel">{item.sublabel}</span>
+                <span className="settings-label">{t(item.label)}</span>
+                <span className="settings-sublabel">{t(item.sublabel)}</span>
               </div>
               <KeyCaptureInput
                 className="settings-keybind-capture"

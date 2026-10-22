@@ -4,6 +4,7 @@ import {
   type ReactNode,
   type WheelEvent,
 } from "react";
+import { useTranslation } from "../../i18n";
 import type { MouseButton, Settings } from "../../store";
 
 import CadenceInput from "../CadenceInput";
@@ -129,6 +130,7 @@ function NumberField({
 }
 
 function SimplePanel({ settings, update }: SimplePanelProps) {
+  const { t } = useTranslation();
   const clickModeOptions = MODE_OPTIONS.map((mode) => ({
     value: mode,
     label: mode === "Toggle" ? "Toggle" : "Hold",
@@ -153,8 +155,8 @@ function SimplePanel({ settings, update }: SimplePanelProps) {
       settings.keyboardKey,
       keyboardKeyCaseIsUpper,
     );
-  const hotkeyConflicts = hasConflict ? ["Auto-press key"] : [];
-  const autoPressKeyConflicts = hasConflict ? ["Hotkey"] : [];
+  const hotkeyConflicts = hasConflict ? [t("Auto-press key")] : [];
+  const autoPressKeyConflicts = hasConflict ? [t("Hotkey")] : [];
 
   return (
     <div className="vcontainer simple-panel">
@@ -211,8 +213,8 @@ function SimplePanel({ settings, update }: SimplePanelProps) {
               type="button"
               className={`simple-input-type-btn ${settings.inputType === "mouse" ? "active" : ""}`}
               onClick={() => update({ inputType: "mouse" })}
-              title="Mouse"
-              aria-label="Mouse"
+              title={t("Mouse")}
+              aria-label={t("Mouse")}
             >
               <svg
                 width="16"
@@ -239,8 +241,8 @@ function SimplePanel({ settings, update }: SimplePanelProps) {
               type="button"
               className={`simple-input-type-btn ${settings.inputType === "keyboard" ? "active" : ""}`}
               onClick={() => update({ inputType: "keyboard" })}
-              title="Keyboard"
-              aria-label="Keyboard"
+              title={t("Keyboard")}
+              aria-label={t("Keyboard")}
             >
               <svg
                 width="16"
@@ -274,7 +276,7 @@ function SimplePanel({ settings, update }: SimplePanelProps) {
                   className={`simple-mouse-btn ${settings.mouseButton === btn ? "active" : ""}`}
                   onClick={() => update({ mouseButton: btn as MouseButton })}
                 >
-                  {btn}
+                  {t(btn)}
                 </button>
               ))}
             </div>
@@ -300,11 +302,11 @@ function SimplePanel({ settings, update }: SimplePanelProps) {
                 }`}
                 aria-label={
                   keyboardKeyCaseIsUpper
-                    ? "Send letters as uppercase"
-                    : "Send letters as lowercase"
+                    ? t("Send letters as uppercase")
+                    : t("Send letters as lowercase")
                 }
                 aria-pressed={keyboardKeyCaseIsUpper}
-                title="Toggle keyboard key case"
+                title={t("Toggle keyboard key case")}
                 disabled={!canToggleKeyboardKeyCase}
                 onClick={toggleKeyboardKeyCase}
               >
@@ -316,7 +318,7 @@ function SimplePanel({ settings, update }: SimplePanelProps) {
 
         <ControlBox className="simple-row-item">
           <NumberField
-            label="Duty Cycle"
+            label={t("Duty Cycle")}
             value={settings.dutyCycle}
             min={SETTINGS_LIMITS.dutyCycle.min!}
             max={SETTINGS_LIMITS.dutyCycle.max!}
@@ -327,7 +329,7 @@ function SimplePanel({ settings, update }: SimplePanelProps) {
 
         <ControlBox className="simple-row-item">
           <NumberField
-            label="Speed Randomization"
+            label={t("Speed Randomization")}
             value={settings.speedRandomization}
             min={SETTINGS_LIMITS.speedRandomization.min!}
             max={SETTINGS_LIMITS.speedRandomization.max!}

@@ -2,8 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import {
   PRESET_NAME_MAX_LENGTH,
   buildPresetSnapshot,
+  displayPresetName,
   getPresetSummary,
 } from "../../../../settingsSchema";
+import { useTranslation } from "../../../../i18n";
 import type { PresetDefinition, PresetId, Settings } from "../../../../store";
 import { SettingsCard } from "./shared";
 
@@ -48,6 +50,7 @@ function PresetRow({
   onDuplicate: () => void;
   onExport: () => void;
 }) {
+  const { language, t } = useTranslation();
   return (
     <div
       className={`preset-card ${isActive ? "preset-card--active" : ""}`}
@@ -74,23 +77,25 @@ function PresetRow({
               autoFocus
             />
           ) : (
-            <span className="preset-name">{preset.name}</span>
+            <span className="preset-name">{displayPresetName(preset, t)}</span>
           )}
           <div className="preset-badges">
             {isActive && !isModified && (
-              <span className="preset-badge preset-badge--active">Active</span>
+              <span className="preset-badge preset-badge--active">
+                {t("Active")}
+              </span>
             )}
             {isActive && isModified && (
               <span className="preset-badge preset-badge--modified">
-                Modified
+                {t("Modified")}
               </span>
             )}
             <span className="preset-badge">
-              {new Date(preset.updatedAt).toLocaleDateString()}
+              {new Date(preset.updatedAt).toLocaleDateString(language)}
             </span>
           </div>
           <div className="preset-summary">
-            {getPresetSummary(preset.settings)}
+            {getPresetSummary(preset.settings, t)}
           </div>
         </div>
         <div className="preset-actions">
@@ -101,10 +106,10 @@ function PresetRow({
                 onClick={onCommitRename}
                 disabled={running}
               >
-                Save
+                {t("Save")}
               </button>
               <button className="settings-btn-quiet" onClick={onCancelRename}>
-                Cancel
+                {t("Cancel")}
               </button>
             </>
           ) : isConfirmingDelete ? (
@@ -114,10 +119,10 @@ function PresetRow({
                 onClick={onConfirmDelete}
                 disabled={running}
               >
-                Confirm?
+                {t("Confirm?")}
               </button>
               <button className="settings-btn-quiet" onClick={onCancelDelete}>
-                Cancel
+                {t("Cancel")}
               </button>
             </>
           ) : (
@@ -127,40 +132,40 @@ function PresetRow({
                 onClick={onApply}
                 disabled={running}
               >
-                Apply
+                {t("Apply")}
               </button>
               <button
                 className="settings-btn-secondary"
                 onClick={onUpdatePreset}
                 disabled={running}
               >
-                Update
+                {t("Update")}
               </button>
               <button
                 className="settings-btn-secondary"
                 onClick={onStartRename}
                 disabled={running}
               >
-                Rename
+                {t("Rename")}
               </button>
               <button
                 className="settings-btn-secondary"
                 onClick={onDuplicate}
                 disabled={running}
               >
-                Duplicate
+                {t("Duplicate")}
               </button>
               <button
                 className="settings-btn-danger settings-btn-danger--compact"
                 onClick={onRequestDelete}
                 disabled={running}
               >
-                Delete
+                {t("Delete")}
               </button>
               <button
                 className="settings-btn-quiet"
                 onClick={onExport}
-                title="Export preset"
+                title={t("Export preset")}
               >
                 <svg
                   width="14"
@@ -213,6 +218,7 @@ export default function PresetsSection({
   onExportPreset,
   onImportPreset,
 }: Props) {
+  const { t } = useTranslation();
   const [newPresetName, setNewPresetName] = useState("");
   const [editingPresetId, setEditingPresetId] = useState<PresetId | null>(null);
   const [renameDraft, setRenameDraft] = useState("");
@@ -275,7 +281,7 @@ export default function PresetsSection({
   const handleStartRename = (preset: PresetDefinition) => {
     setConfirmingDeleteId(null);
     setEditingPresetId(preset.id);
-    setRenameDraft(preset.name);
+    setRenameDraft(displayPresetName(preset, t));
     setRenameError("");
   };
 
@@ -284,7 +290,7 @@ export default function PresetsSection({
 
     const trimmed = renameDraft.trim();
     if (!trimmed) {
-      setRenameError("Name cannot be empty");
+      setRenameError(t("Name cannot be empty"));
       return;
     }
 
@@ -294,7 +300,7 @@ export default function PresetsSection({
         p.name.toLowerCase() === trimmed.toLowerCase(),
     );
     if (duplicate) {
-      setRenameError("A preset with this name already exists");
+      setRenameError(t("A preset with this name already exists"));
       return;
     }
 
@@ -329,18 +335,21 @@ export default function PresetsSection({
   };
 
   return (
-    <SettingsCard title="Presets" description="Save and load presets.">
+    <SettingsCard
+      title={t("Presets")}
+      description={t("Save and load presets.")}
+    >
       <div className="settings-row settings-row--stacked">
         <div className="settings-label-group">
-          <span className="settings-label">Presets</span>
+          <span className="settings-label">{t("Presets")}</span>
           <span className="settings-sublabel">
-            Save and restore to quickly switch configurations.
+            {t("Save and restore to quickly switch configurations.")}
           </span>
         </div>
         <div className="preset-compose">
           <input
             className="preset-name-input"
-            placeholder="Preset name"
+            placeholder={t("Preset name")}
             value={newPresetName}
             maxLength={PRESET_NAME_MAX_LENGTH}
             onChange={(event) => setNewPresetName(event.target.value)}
@@ -363,7 +372,7 @@ export default function PresetsSection({
             onClick={handleSavePreset}
             disabled={running || newPresetName.trim().length === 0}
           >
-            Save
+            {t("Save")}
           </button>
         </div>
         <div className="preset-toolbar">
@@ -386,17 +395,18 @@ export default function PresetsSection({
               <polyline points="17 8 12 3 7 8" />
               <line x1="12" y1="3" x2="12" y2="15" />
             </svg>
-            Import
+            {t("Import")}
           </button>
           {settings.presets.length > 0 && (
             <span className="preset-count">
-              {settings.presets.length} preset
-              {settings.presets.length !== 1 ? "s" : ""}
+              {settings.presets.length === 1
+                ? t("{count} preset", { count: 1 })
+                : t("{count} presets", { count: settings.presets.length })}
             </span>
           )}
         </div>
         {running && (
-          <span className="settings-note">Disabled while clicking</span>
+          <span className="settings-note">{t("Disabled while clicking")}</span>
         )}
         {settings.presets.length > 0 ? (
           <div className="preset-list-shell">
@@ -454,7 +464,7 @@ export default function PresetsSection({
             />
           </div>
         ) : (
-          <div className="stats-empty">No saved presets.</div>
+          <div className="stats-empty">{t("No saved presets.")}</div>
         )}
       </div>
     </SettingsCard>

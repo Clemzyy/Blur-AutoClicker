@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import "./StatusBar.css";
+import { isSingular, translateBackendMessage, useTranslation } from "../i18n";
 
 interface Props {
   activePresetName: string | null;
@@ -16,42 +17,6 @@ interface Props {
   timeLimitMs: number;
   onGoToPresets: () => void;
   onGoToVersionInfo: () => void;
-}
-
-const STOP_REASON_TEXTS: Record<string, string> = {
-  "Stopped from UI": "Stopped from UI",
-  "Stopped from toggle": "Stopped from toggle",
-  "Stopped from hotkey": "Stopped from hotkey",
-  "Stopped from hold hotkey": "Stopped from hold hotkey",
-  Stopped: "Stopped",
-  "Top-left corner failsafe": "Top-left corner failsafe",
-  "Top-right corner failsafe": "Top-right corner failsafe",
-  "Bottom-left corner failsafe": "Bottom-left corner failsafe",
-  "Bottom-right corner failsafe": "Bottom-right corner failsafe",
-  "Top edge failsafe": "Top edge failsafe",
-  "Right edge failsafe": "Right edge failsafe",
-  "Bottom edge failsafe": "Bottom edge failsafe",
-  "Left edge failsafe": "Left edge failsafe",
-  "Blocked by Alt+Tab": "Blocked by Alt+Tab",
-  "Blocked by process list": "Blocked by process list",
-};
-
-function translateStopReason(stopReason: string | null | undefined): string {
-  if (!stopReason) return "";
-  const staticText = STOP_REASON_TEXTS[stopReason];
-  if (staticText) return staticText;
-
-  const clickLimit = stopReason.match(/^Click limit reached \((.+)\)$/);
-  if (clickLimit) {
-    return `Click limit reached (${clickLimit[1]})`;
-  }
-
-  const timeLimit = stopReason.match(/^Time limit reached \((.+)\)$/);
-  if (timeLimit) {
-    return `Time limit reached (${timeLimit[1]})`;
-  }
-
-  return stopReason;
 }
 
 function formatElapsed(ms: number): string {
@@ -81,6 +46,13 @@ export default function StatusBar({
   onGoToPresets,
   onGoToVersionInfo,
 }: Props) {
+  const { language, t } = useTranslation();
+  const clicksText = (count: number) => {
+    const vars = { count: count.toLocaleString(language) };
+    return isSingular(language, count)
+      ? t("{count} click", vars)
+      : t("{count} clicks", vars);
+  };
   const [elapsedMs, setElapsedMs] = useState(0);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const baseElapsedRef = useRef(0);
@@ -126,17 +98,22 @@ export default function StatusBar({
   let hasWarning = false;
 
   if (warning) {
-    centerText = `⚠ ${warning}`;
+    centerText = `⚠ ${translateBackendMessage(warning, t)}`;
     hasWarning = true;
   } else if (running) {
     const parts: string[] = [];
 
     if (paused) {
-      parts.push("Paused");
+      parts.push(t("Paused"));
     }
 
     if (totalClickPoints > 1 && activeClickPointIndex !== null) {
-      parts.push(`Pt ${activeClickPointIndex + 1}/${totalClickPoints}`);
+      parts.push(
+        t("Pt {current}/{total}", {
+          current: activeClickPointIndex + 1,
+          total: totalClickPoints,
+        }),
+      );
     }
 
     const elapsed = formatElapsed(elapsedMs);
@@ -147,19 +124,25 @@ export default function StatusBar({
     }
 
     if (clickLimitEnabled && clickLimit > 0) {
-      parts.push(`${clickCount} / ${clickLimit} clicks`);
+      parts.push(
+        t("{count} / {limit} clicks", {
+          count: clickCount.toLocaleString(language),
+          limit: clickLimit.toLocaleString(language),
+        }),
+      );
     } else if (clickCount > 0) {
-      parts.push(`${clickCount} clicks`);
+      parts.push(clicksText(clickCount));
     }
 
     if (paused && stopReason) {
-      parts.push(translateStopReason(stopReason));
+      parts.push(translateBackendMessage(stopReason, t));
     }
 
     centerText = parts.join("\u00A0\u00A0•\u00A0\u00A0");
   } else if (stopReason) {
-    const reason = translateStopReason(stopReason);
-    centerText = clickCount > 0 ? `${reason} • ${clickCount} clicks` : reason;
+    const reason = translateBackendMessage(stopReason, t);
+    centerText =
+      clickCount > 0 ? `${reason} • ${clicksText(clickCount)}` : reason;
   }
 
   return (
@@ -169,7 +152,7 @@ export default function StatusBar({
           <button
             className="status-bar-preset-btn"
             onClick={onGoToPresets}
-            title="Go to presets"
+            title={t("Go to presets")}
           >
             <svg
               width="12"
@@ -186,9 +169,9 @@ export default function StatusBar({
           <button
             className="status-bar-hint-btn"
             onClick={onGoToPresets}
-            title="Go to presets"
+            title={t("Go to presets")}
           >
-            No preset active
+            {t("No preset active")}
           </button>
         )}
       </div>
@@ -201,7 +184,7 @@ export default function StatusBar({
         <button
           className="status-bar-version-btn"
           onClick={onGoToVersionInfo}
-          title="Info"
+          title={t("Info")}
         >
           v{version}
         </button>

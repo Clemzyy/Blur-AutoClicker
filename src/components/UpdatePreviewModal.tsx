@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { openUrl } from "@tauri-apps/plugin-opener";
 
 import type { ChangelogEntry } from "../changelog";
+import { useTranslation } from "../i18n";
 import ChangelogContent from "./ChangelogContent";
 import "./UpdatePreviewModal.css";
 
@@ -28,6 +29,7 @@ export default function UpdatePreviewModal({
   entries,
   onClose,
 }: Props) {
+  const { t } = useTranslation();
   const closeRef = useRef<HTMLButtonElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
 
@@ -94,14 +96,17 @@ export default function UpdatePreviewModal({
       >
         <div className="update-preview-header">
           <h2 id="update-preview-title" className="update-preview-title">
-            Updates from v{currentVersion} to {latestVersion}
+            {t("Updates from v{current} to {latest}", {
+              current: currentVersion,
+              latest: latestVersion,
+            })}
           </h2>
           <button
             ref={closeRef}
             type="button"
             className="update-preview-close"
             onClick={onClose}
-            aria-label="Close changelog preview"
+            aria-label={t("Close changelog preview")}
           >
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
               <path
@@ -115,18 +120,20 @@ export default function UpdatePreviewModal({
         </div>
         <div className="update-preview-body" ref={bodyRef}>
           {loading ? (
-            <span className="update-preview-status">Loading changelog...</span>
+            <span className="update-preview-status">
+              {t("Loading changelog...")}
+            </span>
           ) : error ? (
             <div className="update-preview-error">
               <span className="update-preview-status">
-                Could not load the changelog.
+                {t("Could not load the changelog.")}
               </span>
               <button
                 type="button"
                 className="update-preview-github-btn"
                 onClick={() => void openUrl(GITHUB_RELEASES_URL)}
               >
-                View on GitHub
+                {t("View on GitHub")}
               </button>
             </div>
           ) : (

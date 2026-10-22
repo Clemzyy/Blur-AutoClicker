@@ -248,10 +248,20 @@ fn show_main_window(app: &AppHandle) {
     }
 }
 
+/// Tray menu entries, kept so the interface can relabel them in its language.
+pub struct TrayMenuItems {
+    pub show: MenuItem<tauri::Wry>,
+    pub quit: MenuItem<tauri::Wry>,
+}
+
 fn setup_tray(app: &AppHandle) -> Result<(), tauri::Error> {
     let show_item = MenuItem::with_id(app, "show", "Show", true, None::<&str>)?;
     let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
     let menu = Menu::with_items(app, &[&show_item, &quit_item])?;
+    app.manage(TrayMenuItems {
+        show: show_item.clone(),
+        quit: quit_item.clone(),
+    });
 
     TrayIconBuilder::with_id("main")
         .icon(
@@ -570,6 +580,7 @@ pub fn run() {
             ui_commands::get_portable_info,
             ui_commands::get_stats,
             ui_commands::reset_stats,
+            ui_commands::set_tray_labels,
             updates::update_checker::check_for_updates,
             updates::update_checker::fetch_changelog,
             overlay::hide_overlay,

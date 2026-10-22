@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { type Translate, useTranslation } from "../../../../i18n";
 import type { AppInfo } from "../../../../store";
 import { changelogEntries } from "../../../../changelog";
 import ChangelogContent from "../../../ChangelogContent";
@@ -13,23 +14,26 @@ interface CumulativeStats {
   avgCpu: number;
 }
 
-function formatTime(totalSeconds: number, language: string): string {
-  if (totalSeconds < 0.01) return "0s";
+function formatTime(
+  totalSeconds: number,
+  language: string,
+  t: Translate,
+): string {
+  const n = (value: number) => value.toLocaleString(language);
+  if (totalSeconds < 0.01) return t("{s}s", { s: n(0) });
   if (totalSeconds < 60) {
-    return `${Math.floor(totalSeconds).toLocaleString(language)}s`;
+    return t("{s}s", { s: n(Math.floor(totalSeconds)) });
   }
   if (totalSeconds < 3600) {
     const m = Math.floor(totalSeconds / 60);
     const s = Math.floor(totalSeconds % 60);
     return s > 0
-      ? `${m.toLocaleString(language)}m ${s.toLocaleString(language)}s`
-      : `${m.toLocaleString(language)}m`;
+      ? t("{m}m {s}s", { m: n(m), s: n(s) })
+      : t("{m}m", { m: n(m) });
   }
   const h = Math.floor(totalSeconds / 3600);
   const m = Math.floor((totalSeconds % 3600) / 60);
-  return m > 0
-    ? `${h.toLocaleString(language)}h ${m.toLocaleString(language)}m`
-    : `${h.toLocaleString(language)}h`;
+  return m > 0 ? t("{h}h {m}m", { h: n(h), m: n(m) }) : t("{h}h", { h: n(h) });
 }
 
 function formatNumber(n: number, language: string): string {
@@ -60,9 +64,9 @@ export default function GeneralSection({
   updateCheckStatus,
   onCheckForUpdate,
 }: Props) {
+  const { language, t } = useTranslation();
   const [stats, setStats] = useState<CumulativeStats | null>(null);
   const [showChangelog, setShowChangelog] = useState(false);
-  const language = "en";
 
   useEffect(() => {
     invoke<CumulativeStats>("get_stats")
@@ -73,18 +77,21 @@ export default function GeneralSection({
   const hasStats = stats !== null && stats.totalSessions > 0;
 
   const updateButtonLabel = {
-    idle: "Check for Update",
-    checking: "Checking...",
-    available: "Update found!",
-    unavailable: "No update found",
-    error: "Check failed",
+    idle: t("Check for Update"),
+    checking: t("Checking..."),
+    available: t("Update found!"),
+    unavailable: t("No update found"),
+    error: t("Check failed"),
   }[updateCheckStatus];
 
   return (
     <>
-      <SettingsCard title="About" description="Version and project links.">
+      <SettingsCard
+        title={t("About")}
+        description={t("Version and project links.")}
+      >
         <div className="social-links">
-          <span className="settings-label">Support Me</span>
+          <span className="settings-label">{t("Support Me")}</span>
           <div className="social-icons">
             <a
               className="social-icon social-icon--kofi"
@@ -99,7 +106,7 @@ export default function GeneralSection({
                 height="28"
                 style={{ border: 0, height: "28px" }}
                 src="https://storage.ko-fi.com/cdn/kofi3.png?v=6"
-                alt="Buy Me a Coffee at ko-fi.com"
+                alt={t("Buy Me a Coffee at ko-fi.com")}
               />
             </a>
             <a
@@ -160,10 +167,10 @@ export default function GeneralSection({
         </div>
         <div className="settings-row">
           <div className="settings-label-group settings-label-group--inline">
-            <span className="settings-label">Version</span>
+            <span className="settings-label">{t("Version")}</span>
             <span className="settings-value">
               v{appInfo.version}
-              {appInfo.portable ? " portable (no auto update)" : ""}
+              {appInfo.portable ? ` ${t("portable (no auto update)")}` : ""}
             </span>
           </div>
           <div className="settings-row-actions">
@@ -186,7 +193,7 @@ export default function GeneralSection({
                   strokeLinejoin="round"
                 />
               </svg>
-              {showChangelog ? "Hide Changes" : "Show Changes"}
+              {showChangelog ? t("Hide Changes") : t("Show Changes")}
             </button>
             <button
               className="settings-btn-secondary check-update-btn"
@@ -201,38 +208,42 @@ export default function GeneralSection({
       </SettingsCard>
 
       <SettingsCard
-        title="Usage"
-        description="Clicking statistics for all sessions (only stored locally)."
+        title={t("Usage")}
+        description={t(
+          "Clicking statistics for all sessions (only stored locally).",
+        )}
       >
         {hasStats ? (
           <div className="stats-grid">
             <div className="stats-cell">
-              <span className="stats-cell-label">Total Clicks</span>
+              <span className="stats-cell-label">{t("Total Clicks")}</span>
               <span className="stats-cell-value">
                 {formatNumber(stats.totalClicks, language)}
               </span>
             </div>
             <div className="stats-cell">
-              <span className="stats-cell-label">Total Clicking Time</span>
+              <span className="stats-cell-label">
+                {t("Total Clicking Time")}
+              </span>
               <span className="stats-cell-value">
-                {formatTime(stats.totalTimeSecs, language)}
+                {formatTime(stats.totalTimeSecs, language, t)}
               </span>
             </div>
             <div className="stats-cell">
-              <span className="stats-cell-label">Average CPU Usage</span>
+              <span className="stats-cell-label">{t("Average CPU Usage")}</span>
               <span className="stats-cell-value">
-                {formatCpu(stats.avgCpu, language, "N/A")}
+                {formatCpu(stats.avgCpu, language, t("N/A"))}
               </span>
             </div>
             <div className="stats-cell">
-              <span className="stats-cell-label">Clicking Sessions</span>
+              <span className="stats-cell-label">{t("Clicking Sessions")}</span>
               <span className="stats-cell-value">
                 {formatNumber(stats.totalSessions, language)}
               </span>
             </div>
           </div>
         ) : (
-          <div className="stats-empty">No session data yet.</div>
+          <div className="stats-empty">{t("No session data yet.")}</div>
         )}
       </SettingsCard>
     </>

@@ -1,6 +1,7 @@
 import "./SettingsPanel.css";
 import { useEffect, useRef, useState } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { useTranslation } from "../../../i18n";
 import type { AppInfo, PresetId, Settings } from "../../../store";
 
 import GeneralSection from "./sections/GeneralSection";
@@ -62,6 +63,7 @@ export default function SettingsPanel({
   initialSettingsTab,
   onInitialTabConsumed,
 }: Props) {
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<SettingsTab>("general");
   const [atBottom, setAtBottom] = useState(true);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -127,7 +129,7 @@ export default function SettingsPanel({
               />
             </svg>
           </span>
-          General
+          {t("General")}
         </button>
         <button
           className={`sidebar-tab ${activeTab === "behavior" ? "active" : ""}`}
@@ -163,7 +165,7 @@ export default function SettingsPanel({
               />
             </svg>
           </span>
-          Behavior
+          {t("Behavior")}
         </button>
         <button
           className={`sidebar-tab ${activeTab === "appearance" ? "active" : ""}`}
@@ -194,7 +196,7 @@ export default function SettingsPanel({
               </g>
             </svg>
           </span>
-          Appearance
+          {t("Appearance")}
         </button>
         <button
           className={`sidebar-tab ${activeTab === "keybinds" ? "active" : ""}`}
@@ -211,7 +213,7 @@ export default function SettingsPanel({
               <path d="M20 5H4c-1.1 0-1.99.9-1.99 2L2 17c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm-9 3h2v2h-2V8zm0 3h2v2h-2v-2zM8 8h2v2H8V8zm0 3h2v2H8v-2zm-1 2H5v-2h2v2zm0-3H5V8h2v2zm9 7H8v-2h8v2zm0-4h-2v-2h2v2zm0-3h-2V8h2v2zm3 3h-2v-2h2v2zm0-3h-2V8h2v2z" />
             </svg>
           </span>
-          Keybinds
+          {t("Keybinds")}
         </button>
         <button
           className={`sidebar-tab ${activeTab === "process-list" ? "active" : ""}`}
@@ -235,7 +237,7 @@ export default function SettingsPanel({
               <path d="M14 8h.01" />
             </svg>
           </span>
-          Process List
+          {t("Process List")}
         </button>
         <button
           className={`sidebar-tab ${activeTab === "presets" ? "active" : ""}`}
@@ -255,7 +257,7 @@ export default function SettingsPanel({
               />
             </svg>
           </span>
-          Presets
+          {t("Presets")}
         </button>
         <button
           className={`sidebar-tab ${activeTab === "maintenance" ? "active" : ""}`}
@@ -272,12 +274,12 @@ export default function SettingsPanel({
               <path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z" />
             </svg>
           </span>
-          Maintenance
+          {t("Maintenance")}
         </button>
         <a
           className="sidebar-kofi"
           href="#"
-          title="Support me on Ko-fi"
+          title={t("Support me on Ko-fi")}
           onClick={(e) => {
             e.preventDefault();
             void openUrl("https://ko-fi.com/Z8Z71T8QD4");
@@ -285,7 +287,7 @@ export default function SettingsPanel({
         >
           <img
             src="https://storage.ko-fi.com/cdn/brandasset/v2/support_me_on_kofi_badge_blue.png"
-            alt="Buy Me a Coffee at ko-fi.com"
+            alt={t("Buy Me a Coffee at ko-fi.com")}
           />
         </a>
       </nav>

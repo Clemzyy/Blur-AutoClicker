@@ -1,3 +1,4 @@
+import { useTranslation } from "../../../../i18n";
 import type { Settings } from "../../../../store";
 
 import { SETTINGS_LIMITS } from "../../../../settingsSchema";
@@ -29,6 +30,7 @@ const EDGE_KEYS = {
 } as const;
 
 export default function FailsafeSection({ settings, update }: Props) {
+  const { t } = useTranslation();
   return (
     <>
       <div className="adv-sectioncontainer">
@@ -41,7 +43,7 @@ export default function FailsafeSection({ settings, update }: Props) {
               gap: "0.5rem",
             }}
           >
-            <span className="adv-card-title">Corner Stop</span>
+            <span className="adv-card-title">{t("Corner Stop")}</span>
           </div>
           <ToggleBtn
             value={settings.cornerStopEnabled}
@@ -50,12 +52,15 @@ export default function FailsafeSection({ settings, update }: Props) {
         </div>
         <CardDivider />
         <div className="adv-card-desc">
-          Stops the clicker when your cursor enters a screen corner. Keep this
-          enabled as a safety net.
+          {t(
+            "Stops the clicker when your cursor enters a screen corner. Keep this enabled as a safety net.",
+          )}
         </div>
         <Disableable
           enabled={settings.cornerStopEnabled}
-          disabledReason="Enable Corner Stop to edit the corner failsafe hitboxes."
+          disabledReason={t(
+            "Enable Corner Stop to edit the corner failsafe hitboxes.",
+          )}
         >
           <div className="adv-row" style={{ gap: 8 }}>
             <div className="adv-corner-grid">
@@ -91,7 +96,7 @@ export default function FailsafeSection({ settings, update }: Props) {
               gap: "0.5rem",
             }}
           >
-            <span className="adv-card-title">Edge Stop</span>
+            <span className="adv-card-title">{t("Edge Stop")}</span>
           </div>
           <ToggleBtn
             value={settings.edgeStopEnabled}
@@ -100,12 +105,15 @@ export default function FailsafeSection({ settings, update }: Props) {
         </div>
         <CardDivider />
         <div className="adv-card-desc">
-          Stops the clicker when your cursor reaches a screen edge. Keep this
-          enabled as a safety net.
+          {t(
+            "Stops the clicker when your cursor reaches a screen edge. Keep this enabled as a safety net.",
+          )}
         </div>
         <Disableable
           enabled={settings.edgeStopEnabled}
-          disabledReason="Enable Edge Stop to edit the edge failsafe hitboxes."
+          disabledReason={t(
+            "Enable Edge Stop to edit the edge failsafe hitboxes.",
+          )}
         >
           <div className="adv-row" style={{ gap: 8 }}>
             <div className="adv-corner-grid">

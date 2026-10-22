@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { error } from "@tauri-apps/plugin-log";
 import { getEffectiveIntervalMs } from "../../../cadence";
+import { useTranslation, withElements } from "../../../i18n";
 import type { ClickPoint, Settings } from "../../../store";
 
 import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
+import { emitTo, listen } from "@tauri-apps/api/event";
 import {
   Disableable,
   CardDivider,
@@ -87,6 +88,7 @@ export default function ClickPointsContent({
   activeClickPointIndex,
   activeClickPointTick,
 }: Props) {
+  const { language, t } = useTranslation();
   const [picking, setPicking] = useState(false);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [showBottomFade, setShowBottomFade] = useState(false);
@@ -200,6 +202,8 @@ export default function ClickPointsContent({
   const startPick = useCallback(async () => {
     setPicking(true);
     try {
+      // The overlay is a separate page: give it the language for its hints.
+      await emitTo("overlay", "overlay-language", language).catch(() => {});
       await invoke("start_click_point_pick");
     } catch (err) {
       setPicking(false);
@@ -210,7 +214,7 @@ export default function ClickPointsContent({
         }),
       );
     }
-  }, []);
+  }, [language]);
 
   const cancelPick = useCallback(async () => {
     setPicking(false);
@@ -490,7 +494,7 @@ export default function ClickPointsContent({
   return (
     <div className="adv-sectioncontainer adv-click-points-card">
       <div className="adv-card-header">
-        <span className="adv-card-title">Click Points</span>
+        <span className="adv-card-title">{t("Click Points")}</span>
         <ToggleBtn
           value={settings.clickPointsEnabled}
           onChange={(v) => {
@@ -503,9 +507,9 @@ export default function ClickPointsContent({
       </div>
       <CardDivider />
       <div className="adv-card-desc">
-        Choose a list of spots on your screen to click one after another. Each
-        spot will use the speed and settings you chose. Choose just one spot if
-        you want to click the exact same place over and over.
+        {t(
+          "Choose a list of spots on your screen to click one after another. Each spot will use the speed and settings you chose. Choose just one spot if you want to click the exact same place over and over.",
+        )}
       </div>
       <Disableable enabled={settings.clickPointsEnabled}>
         <div className="adv-click-points-body">
@@ -517,7 +521,7 @@ export default function ClickPointsContent({
                 void (picking ? cancelPick() : startPick());
               }}
             >
-              {picking ? "Cancel Picking" : "Start Picking"}
+              {picking ? t("Cancel Picking") : t("Start Picking")}
             </button>
             <div className="adv-click-points-list-shell">
               <div ref={listViewportRef} className="adv-click-points-list">
@@ -543,11 +547,15 @@ export default function ClickPointsContent({
                       </svg>
                     </div>
                     <div className="adv-click-points-empty-title">
-                      No click points yet
+                      {t("No click points yet")}
                     </div>
                     <div className="adv-click-points-empty-hint">
-                      Hit <strong>Start Picking</strong> above, then right-click
-                      anywhere on screen to add a new click point.
+                      {withElements(
+                        t(
+                          "Hit {startPicking} above, then right-click anywhere on screen to add a new click point.",
+                        ),
+                        { startPicking: <strong>{t("Start Picking")}</strong> },
+                      )}
                     </div>
                   </div>
                 ) : (
@@ -586,10 +594,14 @@ export default function ClickPointsContent({
           <div className="adv-click-points-footer">
             <div className="adv-click-points-option-row">
               {showInfo ? (
-                <InfoIcon text="When enabled, the clicker stops after one full pass through all click points. When disabled, it loops through the list endlessly." />
+                <InfoIcon
+                  text={t(
+                    "When enabled, the clicker stops after one full pass through all click points. When disabled, it loops through the list endlessly.",
+                  )}
+                />
               ) : null}
               <span className="adv-click-points-option-label">
-                Stop when complete
+                {t("Stop when complete")}
               </span>
               <ToggleBtn
                 value={settings.stopWhenComplete ?? false}

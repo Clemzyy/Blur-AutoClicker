@@ -7,11 +7,13 @@ import {
 } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { error } from "@tauri-apps/plugin-log";
+import { useTranslation } from "../i18n";
 import {
   buildHotkeyWithHeld,
   captureHotkey,
   captureModifierHotkey,
   formatHotkeyForDisplay,
+  translatedHotkeyLabels,
   getKeyboardLayoutMap,
   getMainKey,
   getStateClass,
@@ -53,6 +55,11 @@ export default function KeyCaptureInput({
   onMouseButtonCapture,
   conflicts,
 }: Props) {
+  const { t } = useTranslation();
+  const hotkeyLabels = useMemo(
+    () => translatedHotkeyLabels(t, "Click and press keys"),
+    [t],
+  );
   const [listening, setListening] = useState(false);
   const inputRef = useRef<HTMLButtonElement | null>(null);
   const [layoutMap, setLayoutMap] =
@@ -102,14 +109,14 @@ export default function KeyCaptureInput({
   }, [listening]);
 
   const displayText = useMemo(() => {
-    if (listening) return "Press a key\u2026";
-    if (!value) return "Select key";
+    if (listening) return t("Press a key\u2026");
+    if (!value) return t("Select key");
     return applyKeyboardKeyCase(
       value,
-      formatHotkeyForDisplay(value, layoutMap),
+      formatHotkeyForDisplay(value, layoutMap, hotkeyLabels),
       keyboardKeyCase,
     );
-  }, [keyboardKeyCase, layoutMap, listening, value]);
+  }, [hotkeyLabels, keyboardKeyCase, layoutMap, listening, t, value]);
 
   useEffect(() => {
     if (!listening) return;
@@ -250,7 +257,9 @@ export default function KeyCaptureInput({
           }
         }}
         title={
-          hasConflict ? `Already bound to: ${conflicts!.join(", ")}` : undefined
+          hasConflict
+            ? t("Already bound to: {keys}", { keys: conflicts!.join(", ") })
+            : undefined
         }
       >
         {displayText}
@@ -271,7 +280,7 @@ export default function KeyCaptureInput({
             });
             onChange("");
           }}
-          title="Clear key"
+          title={t("Clear key")}
         >
           ×
         </button>

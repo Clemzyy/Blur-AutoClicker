@@ -1,6 +1,7 @@
 import { Component, type ReactNode } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { error as logError } from "@tauri-apps/plugin-log";
+import { resolveLanguage, translate } from "../i18n";
 
 type Props = {
   children: ReactNode;
@@ -34,6 +35,8 @@ export default class ErrorBoundary extends Component<Props, State> {
   };
 
   render() {
+    // Shown outside the settings context: follows the system language.
+    const t = (text: string) => translate(resolveLanguage("auto"), text);
     if (this.state.hasError) {
       return (
         <div
@@ -50,7 +53,7 @@ export default class ErrorBoundary extends Component<Props, State> {
             color: "var(--text-primary)",
           }}
         >
-          <h2>Something went wrong</h2>
+          <h2>{t("Something went wrong")}</h2>
           <p
             style={{
               color: "var(--text-dim)",
@@ -75,7 +78,7 @@ export default class ErrorBoundary extends Component<Props, State> {
                 font: "inherit",
               }}
             >
-              Try again
+              {t("Try again")}
             </button>
             <button
               onClick={this.handleQuit}
@@ -89,7 +92,7 @@ export default class ErrorBoundary extends Component<Props, State> {
                 font: "inherit",
               }}
             >
-              Quit
+              {t("Quit")}
             </button>
           </div>
         </div>

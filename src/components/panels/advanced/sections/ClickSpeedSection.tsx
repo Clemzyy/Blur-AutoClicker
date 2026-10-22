@@ -1,4 +1,5 @@
 import { useState, type WheelEvent, type FocusEvent } from "react";
+import { useTranslation } from "../../../../i18n";
 import type { Settings } from "../../../../store";
 import {
   formatDecimalLocale,
@@ -36,6 +37,7 @@ interface Props {
 }
 
 export default function ClickSpeedSection({ settings, update }: Props) {
+  const { t } = useTranslation();
   const maxClickSpeed = getMaxClickSpeed(settings.extendedClickSpeedLimit);
   const [draftCps, setDraftCps] = useState<string | null>(null);
 
@@ -44,14 +46,19 @@ export default function ClickSpeedSection({ settings, update }: Props) {
       const intervalMs =
         getIntervalMilliseconds(settings.clickInterval) / settings.clickSpeed;
       if (!Number.isFinite(intervalMs) || intervalMs <= 0) return null;
-      return `${formatIntervalMs(intervalMs)} Interval`;
+      return t("{interval} Interval", {
+        interval: formatIntervalMs(intervalMs, t),
+      });
     }
     const converted = convertDurationToRate(settings);
     if (!converted) return null;
     const unitLabel =
       INTERVAL_OPTIONS.find((o) => o.value === converted.clickInterval)
         ?.label || "Second";
-    return `${formatDecimalLocale(converted.clickSpeed)} clicks per ${unitLabel.toLowerCase()}`;
+    return t("{n} clicks per {unit}", {
+      n: formatDecimalLocale(converted.clickSpeed),
+      unit: t(unitLabel).toLowerCase(),
+    });
   })();
 
   return (
@@ -75,7 +82,7 @@ export default function ClickSpeedSection({ settings, update }: Props) {
               <path d="M7 2v11h3v9l7-12h-4l4-8z" />
             </svg>
           </span>
-          <span className="adv-card-title">Click Speed</span>
+          <span className="adv-card-title">{t("Click Speed")}</span>
         </div>
         <div className="adv-seg-group">
           {SIMPLE_RATE_INPUT_MODE_OPTIONS.map(({ value, label }) => (
@@ -85,18 +92,18 @@ export default function ClickSpeedSection({ settings, update }: Props) {
               className={`adv-seg-btn ${settings.rateInputMode === value ? "active" : ""}`}
               onClick={() => switchCadenceMode(value, settings, update)}
             >
-              {label}
+              {t(label)}
             </button>
           ))}
         </div>
       </div>
       <Disableable
         enabled={settings.dutyCycleMode !== "Hold"}
-        disabledReason="Click speed is disabled in Hold mode"
+        disabledReason={t("Click speed is disabled in Hold mode")}
       >
         <CardDivider />
         <div className="adv-card-desc">
-          Changes how fast the autoclicker clicks.
+          {t("Changes how fast the autoclicker clicks.")}
         </div>
         <div className="adv-cadence-block">
           <div className="adv-row adv-cadence-main-row">
@@ -154,7 +161,7 @@ export default function ClickSpeedSection({ settings, update }: Props) {
                     />
                   </div>
                   <div className="adv-vdivider" />
-                  <span className="adv-unf">Clicks Per</span>
+                  <span className="adv-unf">{t("Clicks Per")}</span>
                   <div className="adv-vdivider" />
                   <div className="adv-foc adv-foc-grow">
                     <AdvDropdown

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { error } from "@tauri-apps/plugin-log";
+import { useTranslation } from "../../../../i18n";
 import ConfirmDialog from "../../../ConfirmDialog";
 import { SettingsCard } from "./shared";
 
@@ -16,6 +17,7 @@ interface Props {
 }
 
 export default function MaintenanceSection({ onReset }: Props) {
+  const { t } = useTranslation();
   const [pendingAction, setPendingAction] = useState<
     "reset-settings" | "reset-usage" | null
   >(null);
@@ -50,45 +52,48 @@ export default function MaintenanceSection({ onReset }: Props) {
   return (
     <>
       <SettingsCard
-        title="Reset"
-        description="Reset all settings or usage data."
+        title={t("Reset")}
+        description={t("Reset all settings or usage data.")}
       >
         <div className="settings-row">
           <div className="settings-label-group">
-            <span className="settings-label">Reset All Settings</span>
+            <span className="settings-label">{t("Reset All Settings")}</span>
             <span className="settings-sublabel">
-              Reset all settings to their defaults.
+              {t("Reset all settings to their defaults.")}
             </span>
           </div>
           <button
             className="settings-btn-danger"
             onClick={() => setPendingAction("reset-settings")}
           >
-            Reset
+            {t("Reset")}
           </button>
         </div>
         <div className="settings-row">
           <div className="settings-label-group">
-            <span className="settings-label">Reset Usage Data</span>
+            <span className="settings-label">{t("Reset Usage Data")}</span>
             <span className="settings-sublabel">
-              Clear all session statistics and usage history.
+              {t("Clear all session statistics and usage history.")}
             </span>
           </div>
           <button
             className="settings-btn-danger"
             onClick={() => setPendingAction("reset-usage")}
           >
-            Reset
+            {t("Reset")}
           </button>
         </div>
       </SettingsCard>
 
-      <SettingsCard title="Diagnostics" description="Your logs & crash reports">
+      <SettingsCard
+        title={t("Diagnostics")}
+        description={t("Your logs & crash reports")}
+      >
         <div className="settings-row">
           <div className="settings-label-group">
-            <span className="settings-label">Diagnostics</span>
+            <span className="settings-label">{t("Diagnostics")}</span>
             <span className="settings-sublabel">
-              View or export your diagnostics.
+              {t("View or export your diagnostics.")}
             </span>
           </div>
           <div className="settings-row-actions">
@@ -107,7 +112,7 @@ export default function MaintenanceSection({ onReset }: Props) {
                 }
               }}
             >
-              Open Folder
+              {t("Open Folder")}
             </button>
             <button
               className="settings-btn-secondary"
@@ -119,9 +124,9 @@ export default function MaintenanceSection({ onReset }: Props) {
                   const path: string = await invoke(
                     "export_diagnostics_bundle",
                   );
-                  setDiagnosticsStatus(`Exported to ${path}`);
+                  setDiagnosticsStatus(t("Exported to {path}", { path }));
                 } catch (err) {
-                  setDiagnosticsStatus("Export failed");
+                  setDiagnosticsStatus(t("Export failed"));
                   error(
                     JSON.stringify({
                       source: "SettingsPanel.exportDiagnostics",
@@ -133,7 +138,7 @@ export default function MaintenanceSection({ onReset }: Props) {
                 }
               }}
             >
-              {exporting ? "Exporting..." : "Export"}
+              {exporting ? t("Exporting...") : t("Export")}
             </button>
           </div>
         </div>
@@ -144,18 +149,22 @@ export default function MaintenanceSection({ onReset }: Props) {
 
       <ConfirmDialog
         open={pendingAction === "reset-settings"}
-        title="Reset all settings"
-        message="This will reset all settings to their default values. This action cannot be undone."
-        confirmLabel="Reset"
+        title={t("Reset all settings")}
+        message={t(
+          "This will reset all settings to their default values. This action cannot be undone.",
+        )}
+        confirmLabel={t("Reset")}
         busy={busy}
         onConfirm={handleConfirmResetSettings}
         onCancel={() => setPendingAction(null)}
       />
       <ConfirmDialog
         open={pendingAction === "reset-usage"}
-        title="Reset usage data"
-        message="This will clear all session statistics and usage history. This action cannot be undone."
-        confirmLabel="Reset"
+        title={t("Reset usage data")}
+        message={t(
+          "This will clear all session statistics and usage history. This action cannot be undone.",
+        )}
+        confirmLabel={t("Reset")}
         busy={busy}
         onConfirm={handleConfirmResetUsage}
         onCancel={() => setPendingAction(null)}

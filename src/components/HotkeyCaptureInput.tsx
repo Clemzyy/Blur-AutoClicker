@@ -8,11 +8,12 @@ import {
 } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { error } from "@tauri-apps/plugin-log";
+import { useTranslation } from "../i18n";
 import {
   buildChordHotkey,
   captureHotkey,
   captureModifierHotkey,
-  defaultHotkeyLabels,
+  translatedHotkeyLabels,
   formatHotkeyForDisplay,
   getKeyboardLayoutMap,
   getMainKey,
@@ -40,6 +41,8 @@ const HotkeyCaptureInput = forwardRef<HotkeyCaptureInputHandle, Props>(
     { value, onChange, className, style, conflicts, reserved, editable = true },
     ref,
   ) {
+    const { t } = useTranslation();
+    const hotkeyLabels = useMemo(() => translatedHotkeyLabels(t), [t]);
     const [listening, setListening] = useState(false);
     const inputRef = useRef<HTMLButtonElement | null>(null);
     const ignorePrimaryInputMouseUntilRef = useRef(0);
@@ -415,12 +418,12 @@ const HotkeyCaptureInput = forwardRef<HotkeyCaptureInputHandle, Props>(
     }, [listening]);
 
     const displayText = useMemo(() => {
-      if (listening) return "Press keys\u2026";
+      if (listening) return t("Press keys\u2026");
 
       return value
-        ? formatHotkeyForDisplay(value, layoutMap, defaultHotkeyLabels)
-        : defaultHotkeyLabels.empty;
-    }, [layoutMap, listening, value]);
+        ? formatHotkeyForDisplay(value, layoutMap, hotkeyLabels)
+        : hotkeyLabels.empty;
+    }, [hotkeyLabels, layoutMap, listening, t, value]);
 
     const hasConflict = conflicts !== undefined && conflicts.length > 0;
     const stateClass = getStateClass(listening, hasConflict, !!value);
@@ -428,11 +431,11 @@ const HotkeyCaptureInput = forwardRef<HotkeyCaptureInputHandle, Props>(
     const tooltipText = listening
       ? undefined
       : hasConflict
-        ? `Already bound to: ${conflicts!.join(", ")}`
+        ? t("Already bound to: {keys}", { keys: conflicts!.join(", ") })
         : reserved
-          ? "This hotkey may conflict with system shortcuts"
+          ? t("This hotkey may conflict with system shortcuts")
           : value
-            ? "Hotkey works even when Blur is minimized"
+            ? t("Hotkey works even when Blur is minimized")
             : undefined;
 
     return (
@@ -484,7 +487,7 @@ const HotkeyCaptureInput = forwardRef<HotkeyCaptureInputHandle, Props>(
               });
               onChange("");
             }}
-            title="Clear hotkey"
+            title={t("Clear hotkey")}
           >
             ×
           </button>

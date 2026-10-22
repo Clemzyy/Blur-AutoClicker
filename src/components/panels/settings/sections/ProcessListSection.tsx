@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { useTranslation } from "../../../../i18n";
 import type { Settings } from "../../../../store";
 import type { ProcessListEntry } from "../../../../settingsSchema";
 import { Disableable, CardDivider } from "../../advanced/sections/shared";
@@ -18,6 +19,7 @@ interface Props {
 }
 
 export default function ProcessListSection({ settings, update }: Props) {
+  const { t } = useTranslation();
   const [processes, setProcesses] = useState<ProcessInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -98,14 +100,14 @@ export default function ProcessListSection({ settings, update }: Props) {
 
   return (
     <SettingsCard
-      title="Process List"
-      description="Stop clicking when specific applications are in focus."
+      title={t("Process List")}
+      description={t("Stop clicking when specific applications are in focus.")}
     >
       <div className="settings-row">
         <div className="settings-label-group">
-          <span className="settings-label">Enable</span>
+          <span className="settings-label">{t("Enable")}</span>
           <span className="settings-sublabel">
-            Stop clicking based on the active application.
+            {t("Stop clicking based on the active application.")}
           </span>
         </div>
         <div className="settings-toggle-wrapper">
@@ -122,9 +124,9 @@ export default function ProcessListSection({ settings, update }: Props) {
 
       <div className="settings-row">
         <div className="settings-label-group">
-          <span className="settings-label">Mode</span>
+          <span className="settings-label">{t("Mode")}</span>
           <span className="settings-sublabel">
-            Whitelist only allows checked apps. Blacklist blocks them.
+            {t("Whitelist only allows checked apps. Blacklist blocks them.")}
           </span>
         </div>
         <div className="settings-seg-group">
@@ -133,14 +135,14 @@ export default function ProcessListSection({ settings, update }: Props) {
             className={`settings-seg-btn ${settings.processListMode === "whitelist" ? "active" : ""}`}
             onClick={() => update({ processListMode: "whitelist" })}
           >
-            Whitelist
+            {t("Whitelist")}
           </button>
           <button
             type="button"
             className={`settings-seg-btn ${settings.processListMode === "blacklist" ? "active" : ""}`}
             onClick={() => update({ processListMode: "blacklist" })}
           >
-            Blacklist
+            {t("Blacklist")}
           </button>
         </div>
       </div>
@@ -149,13 +151,14 @@ export default function ProcessListSection({ settings, update }: Props) {
 
       <Disableable
         enabled={settings.processListEnabled}
-        disabledReason="Enable Process List to manage application rules."
+        disabledReason={t("Enable Process List to manage application rules.")}
       >
         {settings.processListMode === "whitelist" &&
         settings.processListEntries.length === 0 ? (
           <div className="settings-whitelist-warning">
-            Whitelist mode is active with no applications selected. Clicking
-            will be blocked everywhere.
+            {t(
+              "Whitelist mode is active with no applications selected. Clicking will be blocked everywhere.",
+            )}
           </div>
         ) : null}
 
@@ -163,7 +166,9 @@ export default function ProcessListSection({ settings, update }: Props) {
           <input
             type="text"
             className="settings-proc-search"
-            placeholder={`search in ${processes.length} applications`}
+            placeholder={t("search in {count} applications", {
+              count: processes.length,
+            })}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
@@ -184,10 +189,10 @@ export default function ProcessListSection({ settings, update }: Props) {
             onScroll={handleListScroll}
           >
             {loading ? (
-              <div className="adv-click-points-empty">Refreshing...</div>
+              <div className="adv-click-points-empty">{t("Refreshing...")}</div>
             ) : processes.length === 0 ? (
               <div className="adv-click-points-empty">
-                No processes found. Click Refresh.
+                {t("No processes found. Click Refresh.")}
               </div>
             ) : searchQuery.length >= 1 &&
               checkedProcesses.length === 0 &&
@@ -196,7 +201,7 @@ export default function ProcessListSection({ settings, update }: Props) {
                 className="adv-click-points-empty"
                 style={{ textAlign: "center", padding: "1rem" }}
               >
-                no process named &quot;{searchQuery}&quot;
+                {t('no process named "{name}"', { name: searchQuery })}
               </div>
             ) : (
               <>

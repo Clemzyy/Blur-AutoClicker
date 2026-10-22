@@ -1,3 +1,11 @@
+import {
+  LANGUAGE_SETTINGS,
+  msg,
+  translate,
+  type LanguageSetting,
+  type Translate,
+} from "./i18n";
+
 export type ClickInterval = "s" | "m" | "h" | "d";
 export type MouseButton = "Left" | "Middle" | "Right";
 export type InputType = "mouse" | "keyboard";
@@ -44,10 +52,10 @@ export const DEFAULT_MAX_CLICK_SPEED = 500;
 export const EXTENDED_MAX_CLICK_SPEED = 1000;
 
 export const CLICK_INTERVAL_OPTIONS = [
-  { value: "s", label: "Second" },
-  { value: "m", label: "Minute" },
-  { value: "h", label: "Hour" },
-  { value: "d", label: "Day" },
+  { value: "s", label: msg("Second") },
+  { value: "m", label: msg("Minute") },
+  { value: "h", label: msg("Hour") },
+  { value: "d", label: msg("Day") },
 ] as const satisfies ReadonlyArray<{ value: ClickInterval; label: string }>;
 
 export const MODE_OPTIONS = [
@@ -369,6 +377,10 @@ const SETTINGS_ONLY_FIELDS = {
   },
   theme: {
     default: "dark" as Theme,
+    ui: { section: "appearance", control: "select" },
+  },
+  language: {
+    default: "auto" as LanguageSetting,
     ui: { section: "appearance", control: "select" },
   },
   alwaysOnTop: {
@@ -722,7 +734,7 @@ export type Settings = PresetFieldValues &
 export const FACTORY_PRESETS: PresetDefinition[] = [
   {
     id: "factory-standard",
-    name: "Standard Clicking",
+    name: msg("Standard Clicking"),
     createdAt: "2025-01-01T00:00:00.000Z",
     updatedAt: "2025-01-01T00:00:00.000Z",
     settings: {
@@ -766,7 +778,7 @@ export const FACTORY_PRESETS: PresetDefinition[] = [
   },
   {
     id: "factory-rapid",
-    name: "Rapid Fire",
+    name: msg("Rapid Fire"),
     createdAt: "2025-01-01T00:00:00.000Z",
     updatedAt: "2025-01-01T00:00:00.000Z",
     settings: {
@@ -810,7 +822,7 @@ export const FACTORY_PRESETS: PresetDefinition[] = [
   },
   {
     id: "factory-precision",
-    name: "Precision Mode",
+    name: msg("Precision Mode"),
     createdAt: "2025-01-01T00:00:00.000Z",
     updatedAt: "2025-01-01T00:00:00.000Z",
     settings: {
@@ -1159,22 +1171,50 @@ export function createPresetDefinition(
   };
 }
 
-export function getPresetSummary(snapshot: PresetSnapshot): string {
+const SPEED_PER_INTERVAL: Record<ClickInterval, string> = {
+  s: msg("{n}/s"),
+  m: msg("{n}/m"),
+  h: msg("{n}/h"),
+  d: msg("{n}/d"),
+};
+
+// Factory presets keep their English name in the settings; it is translated
+// where it is shown, as long as the user has not renamed the preset.
+export function displayPresetName(
+  preset: PresetDefinition,
+  t: Translate,
+): string {
+  const factory = FACTORY_PRESETS.find((p) => p.id === preset.id);
+  return factory && factory.name === preset.name ? t(preset.name) : preset.name;
+}
+
+export function getPresetSummary(
+  snapshot: PresetSnapshot,
+  t: Translate = (text, vars) => translate("en", text, vars),
+): string {
   const parts: string[] = [];
 
-  const speedStr = `${snapshot.clickSpeed}/${snapshot.clickInterval}`;
+  const speedStr = t(SPEED_PER_INTERVAL[snapshot.clickInterval], {
+    n: snapshot.clickSpeed,
+  });
   const inputStr =
     snapshot.inputType === "keyboard" && snapshot.keyboardKey
       ? `${snapshot.keyboardKey}`
-      : snapshot.mouseButton;
+      : t(snapshot.mouseButton);
   parts.push(`${speedStr}  ${inputStr}`);
 
   if (snapshot.clickLimitEnabled)
-    parts.push(`Limit:${snapshot.clickLimit.toLocaleString()}`);
+    parts.push(
+      t("Limit:{count}", { count: snapshot.clickLimit.toLocaleString() }),
+    );
   if (snapshot.timeLimitEnabled)
-    parts.push(`Time:${snapshot.timeLimit}${snapshot.timeLimitUnit}`);
+    parts.push(
+      t("Time:{time}", {
+        time: `${snapshot.timeLimit}${snapshot.timeLimitUnit}`,
+      }),
+    );
   if (snapshot.clickPoints.length > 0)
-    parts.push(`${snapshot.clickPoints.length} pts`);
+    parts.push(t("{count} pts", { count: snapshot.clickPoints.length }));
 
   return parts.join(" | ");
 }
@@ -1368,6 +1408,11 @@ export function sanitizeSettings(
     defaults.lastPanel,
   );
   settingsOnly.theme = sanitizeTheme(saved.theme, defaults.theme);
+  settingsOnly.language = sanitizeEnum(
+    saved.language,
+    defaults.language,
+    LANGUAGE_SETTINGS,
+  );
   settingsOnly.masterKeybindMode = sanitizeEnum(
     saved.masterKeybindMode,
     defaults.masterKeybindMode,

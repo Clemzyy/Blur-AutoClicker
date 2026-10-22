@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { CSSProperties, FocusEvent, WheelEvent } from "react";
+import { useTranslation } from "../../i18n";
 import type { RateInputMode, Settings } from "../../store";
 import {
   convertDurationToRate,
@@ -78,6 +79,7 @@ interface Props {
 }
 
 export default function SimpleCadenceInput({ settings, update }: Props) {
+  const { t } = useTranslation();
   const maxClickSpeed = getMaxClickSpeed(settings.extendedClickSpeedLimit);
   const [draftCps, setDraftCps] = useState<string | null>(null);
 
@@ -109,7 +111,7 @@ export default function SimpleCadenceInput({ settings, update }: Props) {
             inputMode="decimal"
             className="simple-inline-input simple-cadence-input"
             value={draftCps ?? settings.clickSpeed}
-            aria-label="Clicks Per"
+            aria-label={t("Clicks Per")}
             onChange={(event) => {
               const raw = event.target.value;
               const normalized = normalizeDecimalRaw(raw);
@@ -147,7 +149,7 @@ export default function SimpleCadenceInput({ settings, update }: Props) {
             }
           />
           <div className="vertical-devider vertical-devider--stretch" />
-          <span className="simple-control-label">Clicks Per</span>
+          <span className="simple-control-label">{t("Clicks Per")}</span>
           <div className="vertical-devider vertical-devider--stretch" />
           <AdvDropdown
             value={settings.clickInterval}
@@ -306,7 +308,7 @@ export default function SimpleCadenceInput({ settings, update }: Props) {
             />
           </div>
           <div className="vertical-devider vertical-devider--stretch" />
-          <span className="simple-control-label">Per Click</span>
+          <span className="simple-control-label">{t("Per Click")}</span>
           <div className="vertical-devider vertical-devider--stretch" />
           <AdvDropdown
             value={settings.rateInputMode}
