@@ -1,5 +1,7 @@
 use super::cycle::{execute_click_cycle, ClickCycleKind, ClickCyclePlan};
 use super::worker::{sleep_interruptible, RunControl};
+use crate::error::poisoned_inner;
+use std::sync::{Mutex, OnceLock};
 use std::time::Duration;
 use std::time::Instant;
 
@@ -151,6 +153,37 @@ pub fn current_monitor_rects() -> Option<Vec<VirtualScreenRect>> {
 #[cfg(not(target_os = "windows"))]
 pub fn current_monitor_rects() -> Option<Vec<VirtualScreenRect>> {
     current_virtual_screen_rect().map(|screen| vec![screen])
+}
+
+// The failsafe checks the monitor layout several times per click; a layout
+// change is picked up within a second instead of enumerating monitors each time.
+const MONITOR_CACHE_TTL: Duration = Duration::from_secs(1);
+
+struct MonitorCache {
+    fetched_at: Instant,
+    rects: Vec<VirtualScreenRect>,
+}
+
+fn monitor_cache() -> &'static Mutex<Option<MonitorCache>> {
+    static CACHE: OnceLock<Mutex<Option<MonitorCache>>> = OnceLock::new();
+    CACHE.get_or_init(|| Mutex::new(None))
+}
+
+fn monitor_cache_is_stale(fetched_at: Option<Instant>, now: Instant) -> bool {
+    fetched_at.is_none_or(|fetched| now.duration_since(fetched) >= MONITOR_CACHE_TTL)
+}
+
+/// Runs `f` on the monitor rects, re-enumerated at most once per MONITOR_CACHE_TTL.
+pub fn with_cached_monitor_rects<R>(f: impl FnOnce(&[VirtualScreenRect]) -> R) -> Option<R> {
+    let mut cache = monitor_cache().lock().unwrap_or_else(poisoned_inner);
+    let now = Instant::now();
+    if monitor_cache_is_stale(cache.as_ref().map(|c| c.fetched_at), now) {
+        *cache = current_monitor_rects().map(|rects| MonitorCache {
+            fetched_at: now,
+            rects,
+        });
+    }
+    cache.as_ref().map(|c| f(&c.rects))
 }
 
 #[inline]
@@ -431,6 +464,27 @@ mod tests {
                 assert_eq!(landed, x, "left={left} width={width}");
             }
         }
+    }
+
+    #[test]
+    fn monitor_cache_refreshes_after_its_ttl() {
+        let fetched = Instant::now();
+        assert!(monitor_cache_is_stale(None, fetched));
+        assert!(!monitor_cache_is_stale(Some(fetched), fetched));
+        assert!(!monitor_cache_is_stale(
+            Some(fetched),
+            fetched + MONITOR_CACHE_TTL - Duration::from_millis(1)
+        ));
+        assert!(monitor_cache_is_stale(
+            Some(fetched),
+            fetched + MONITOR_CACHE_TTL
+        ));
+    }
+
+    #[test]
+    fn cached_monitor_rects_match_a_fresh_enumeration() {
+        let cached = with_cached_monitor_rects(|rects| rects.to_vec());
+        assert_eq!(cached, current_monitor_rects());
     }
 
     #[test]

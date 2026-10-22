@@ -18,11 +18,11 @@ use windows_sys::Win32::Foundation::{GetLastError, LRESULT, POINT};
 use windows_sys::Win32::System::Threading::GetCurrentProcessId;
 use windows_sys::Win32::UI::Input::KeyboardAndMouse::*;
 use windows_sys::Win32::UI::WindowsAndMessaging::{
-    CallNextHookEx, GetAncestor, GetCursorPos, GetWindowThreadProcessId, PeekMessageW,
-    SetWindowsHookExW, UnhookWindowsHookEx, WaitMessage, WindowFromPoint, GA_ROOT, KBDLLHOOKSTRUCT,
-    LLKHF_EXTENDED, MSG, MSLLHOOKSTRUCT, WH_KEYBOARD_LL, WH_MOUSE_LL, WM_KEYDOWN, WM_LBUTTONDOWN,
-    WM_LBUTTONUP, WM_MBUTTONDOWN, WM_MBUTTONUP, WM_QUIT, WM_RBUTTONDOWN, WM_RBUTTONUP,
-    WM_SYSKEYDOWN, WM_XBUTTONDOWN, WM_XBUTTONUP,
+    CallNextHookEx, GetAncestor, GetCursorPos, GetWindowThreadProcessId, MsgWaitForMultipleObjects,
+    PeekMessageW, SetWindowsHookExW, UnhookWindowsHookEx, WaitMessage, WindowFromPoint, GA_ROOT,
+    KBDLLHOOKSTRUCT, LLKHF_EXTENDED, MSG, MSLLHOOKSTRUCT, QS_ALLINPUT, WH_KEYBOARD_LL, WH_MOUSE_LL,
+    WM_KEYDOWN, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MBUTTONDOWN, WM_MBUTTONUP, WM_QUIT,
+    WM_RBUTTONDOWN, WM_RBUTTONUP, WM_SYSKEYDOWN, WM_XBUTTONDOWN, WM_XBUTTONUP,
 };
 
 const PM_REMOVE: u32 = 0x0001;
@@ -353,6 +353,8 @@ pub fn format_hotkey_binding(binding: &HotkeyBinding) -> String {
 
 static PHYSICAL_KEY_STATE: OnceLock<&'static [AtomicBool; 256]> = OnceLock::new();
 static HOOKS_ACTIVE: AtomicBool = AtomicBool::new(false);
+// Set by the hooks, cleared by each hotkey check: input arrived that no check has seen yet.
+static HOOK_INPUT_PENDING: AtomicBool = AtomicBool::new(false);
 
 fn physical_key_state() -> &'static [AtomicBool; 256] {
     PHYSICAL_KEY_STATE
@@ -396,6 +398,7 @@ fn normalize_low_level_keyboard_vk(khs: &KBDLLHOOKSTRUCT) -> i32 {
 
 unsafe extern "system" fn mouse_ll_proc(n_code: i32, w_param: usize, l_param: isize) -> LRESULT {
     if n_code >= 0 {
+        HOOK_INPUT_PENDING.store(true, Ordering::Relaxed);
         let mhs = &*(l_param as *const MSLLHOOKSTRUCT);
         if (mhs.dwExtraInfo) != AUTOCLICKER_EXTRA_INFO {
             let (vk, down) = match w_param as u32 {
@@ -433,6 +436,7 @@ unsafe extern "system" fn mouse_ll_proc(n_code: i32, w_param: usize, l_param: is
 
 unsafe extern "system" fn keyboard_ll_proc(n_code: i32, w_param: usize, l_param: isize) -> LRESULT {
     if n_code >= 0 {
+        HOOK_INPUT_PENDING.store(true, Ordering::Relaxed);
         let khs = &*(l_param as *const KBDLLHOOKSTRUCT);
         if (khs.dwExtraInfo) != AUTOCLICKER_EXTRA_INFO {
             let vk = normalize_low_level_keyboard_vk(khs);
@@ -486,6 +490,7 @@ pub fn start_hotkey_listener(app: AppHandle) {
 
             if last_check.elapsed() >= POLL_INTERVAL {
                 last_check = Instant::now();
+                HOOK_INPUT_PENDING.store(false, Ordering::Relaxed);
 
                 let (binding, strict) = {
                     let binding = state
@@ -635,7 +640,22 @@ pub fn start_hotkey_listener(app: AppHandle) {
                 was_pressed = currently_pressed;
             } else if HOOKS_ACTIVE.load(Ordering::Relaxed) {
                 if PeekMessageW(&mut msg, std::ptr::null_mut(), 0, 0, PM_NOREMOVE) == 0 {
-                    WaitMessage();
+                    if HOOK_INPUT_PENDING.load(Ordering::Relaxed) {
+                        // Input came in less than POLL_INTERVAL after the last check.
+                        // WaitMessage would sleep until the *next* input, so a chord
+                        // completed here (Y pressed <4 ms after Ctrl, then released)
+                        // was never seen: wait only until the check is due.
+                        let remaining = POLL_INTERVAL.saturating_sub(last_check.elapsed());
+                        MsgWaitForMultipleObjects(
+                            0,
+                            std::ptr::null(),
+                            0,
+                            (remaining.as_millis() as u32).max(1),
+                            QS_ALLINPUT,
+                        );
+                    } else {
+                        WaitMessage();
+                    }
                 }
             } else {
                 std::thread::sleep(POLL_INTERVAL);

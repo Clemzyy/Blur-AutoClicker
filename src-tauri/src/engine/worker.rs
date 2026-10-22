@@ -606,9 +606,13 @@ impl ClickerContext {
         } else {
             0.0
         };
+        // One click per batch keeps clicks evenly spaced; the schedule is absolute,
+        // so the average rate stays exact. Pairs (formerly from 50 CPS) alternated
+        // short and long gaps, e.g. 8 ms / 25 ms at 60 CPS. Above 200 CPS the
+        // per-batch overhead wins: one click per batch only reached 413 of 500 CPS.
         let batch_size = if !config.double_click_enabled && cps > 500.0 {
             3
-        } else if !config.double_click_enabled && cps >= 50.0 {
+        } else if !config.double_click_enabled && cps > 200.0 {
             2
         } else {
             1
@@ -1407,5 +1411,23 @@ mod tests {
 
         let ctx = ClickerContext::new(&config);
         assert!(!ctx.keyboard_hold_mode);
+    }
+
+    #[test]
+    fn clicks_are_sent_one_per_batch_up_to_200_cps() {
+        let mut config = sample_config();
+        for cps in [25.0, 60.0, 100.0, 200.0] {
+            config.interval_secs = 1.0 / cps;
+            assert_eq!(ClickerContext::new(&config).batch_size, 1, "{cps} CPS");
+        }
+        for cps in [201.0, 300.0, 500.0] {
+            config.interval_secs = 1.0 / cps;
+            assert_eq!(ClickerContext::new(&config).batch_size, 2, "{cps} CPS");
+        }
+
+        config.interval_secs = 1.0 / 1000.0;
+        assert_eq!(ClickerContext::new(&config).batch_size, 3);
+        config.double_click_enabled = true;
+        assert_eq!(ClickerContext::new(&config).batch_size, 1);
     }
 }

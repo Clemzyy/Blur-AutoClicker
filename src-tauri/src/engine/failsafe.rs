@@ -1,4 +1,4 @@
-use super::mouse::{current_cursor_position, current_monitor_rects, VirtualScreenRect};
+use super::mouse::{current_cursor_position, with_cached_monitor_rects, VirtualScreenRect};
 use super::{ClickerConfig, ZoneAction};
 
 pub fn detect_stop_zones(
@@ -114,9 +114,11 @@ pub fn detect_failsafe(
 }
 
 pub fn should_stop_for_failsafe(config: &ClickerConfig) -> Option<String> {
+    if !config.corner_stop_enabled && !config.edge_stop_enabled && !config.stop_zones_enabled {
+        return None;
+    }
     let cursor = current_cursor_position()?;
-    let monitors = current_monitor_rects()?;
-    detect_failsafe(cursor, &monitors, config)
+    with_cached_monitor_rects(|monitors| detect_failsafe(cursor, monitors, config)).flatten()
 }
 
 #[cfg(test)]
@@ -159,6 +161,28 @@ mod tests {
             process_list_mode: crate::engine::ProcessListMode::Whitelist,
             process_list_entries: Vec::new(),
             task_switcher_stop_enabled: false,
+        }
+    }
+
+    #[test]
+    fn failsafe_is_skipped_when_every_check_is_off() {
+        let mut config = sample_config();
+        config.corner_stop_enabled = false;
+        config.edge_stop_enabled = false;
+        config.stop_zones_enabled = false;
+        // A zone covering the whole virtual desktop stops wherever the cursor is.
+        config.stop_zones.push(StopZoneConfig {
+            rect: VirtualScreenRect::new(i32::MIN / 2, i32::MIN / 2, i32::MAX, i32::MAX),
+            action: ZoneAction::Stop,
+        });
+        assert_eq!(should_stop_for_failsafe(&config), None);
+
+        config.stop_zones_enabled = true;
+        if current_cursor_position().is_some() {
+            assert_eq!(
+                should_stop_for_failsafe(&config).as_deref(),
+                Some("Custom stop zone failsafe")
+            );
         }
     }
 
