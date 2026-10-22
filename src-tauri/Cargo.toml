@@ -53,6 +53,7 @@ crashpad-rs = { version = "0.2", features = ["prebuilt"], optional = true }
 walkdir = "2"
 zip = "8.6.0"
 open = "5.4.1"
+tauri-plugin-single-instance = "2"
 
 [dev-dependencies]
 tempfile = "3"

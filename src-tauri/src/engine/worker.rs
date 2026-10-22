@@ -1,3 +1,4 @@
+use std::cell::Cell;
 use std::f64::consts::PI;
 use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -203,6 +204,9 @@ pub fn start_clicker_inner(app: &AppHandle) -> AppResult<ClickerStatusPayload> {
     let control = RunControl::new(app.clone(), expected_generation);
     let app_handle = app.clone();
 
+    // Reset here rather than only in the worker thread, so the first status
+    // event does not show the previous run's count.
+    CLICK_COUNT.store(0, Ordering::SeqCst);
     let payload = current_status(app);
     crate::icon::set_app_icons(app);
     emit_status(app);
@@ -221,6 +225,7 @@ pub fn start_clicker_inner(app: &AppHandle) -> AppResult<ClickerStatusPayload> {
 
         let state = app_handle.state::<ClickerState>();
         state.running.store(false, Ordering::SeqCst);
+        state.paused_by_zone.store(false, Ordering::SeqCst);
         state.active_click_point_index.store(-1, Ordering::SeqCst);
         state.active_click_point_tick.store(0, Ordering::SeqCst);
 
@@ -452,7 +457,7 @@ pub fn current_status(app: &AppHandle) -> ClickerStatusPayload {
 
     ClickerStatusPayload {
         running: state.running.load(Ordering::SeqCst),
-        paused: state.paused.load(Ordering::SeqCst),
+        paused: state.paused.load(Ordering::SeqCst) || state.paused_by_zone.load(Ordering::SeqCst),
         click_count: get_click_count(),
         last_error,
         stop_reason,
@@ -659,6 +664,7 @@ struct LoopState {
     target_y: i32,
     next_batch_time: Instant,
     moved_click_point_index: Option<usize>,
+    last_status_emit: Instant,
 }
 
 impl LoopState {
@@ -679,11 +685,38 @@ impl LoopState {
             target_y,
             next_batch_time: Instant::now(),
             moved_click_point_index: None,
+            last_status_emit: Instant::now(),
         }
     }
 }
 
-fn check_abort(config: &ClickerConfig, start_time: Instant) -> Option<String> {
+// Status events are otherwise only sent on start/stop, which left the click
+// counter frozen for the whole run.
+const LIVE_STATUS_INTERVAL: Duration = Duration::from_millis(250);
+
+fn emit_live_status(control: &RunControl, last_emit: &mut Instant) {
+    if last_emit.elapsed() >= LIVE_STATUS_INTERVAL {
+        *last_emit = Instant::now();
+        emit_status(&control.app);
+    }
+}
+
+/// Sleeps one pause tick and books it as paused time, which the time limit ignores.
+fn pause_tick(paused_for: &Cell<Duration>) {
+    let started = Instant::now();
+    std::thread::sleep(Duration::from_millis(10));
+    paused_for.set(paused_for.get() + started.elapsed());
+}
+
+/// Clicks are not owed for time spent paused: without this, the batches skipped
+/// during a pause were sent back-to-back (at hold-time speed) once clicking resumed.
+fn resume_after_pause(st: &mut LoopState, now: Instant) {
+    if st.next_batch_time < now {
+        st.next_batch_time = now;
+    }
+}
+
+fn check_abort(config: &ClickerConfig, active_secs: f64) -> Option<String> {
     if let Some(reason) = should_stop_for_failsafe(config) {
         return Some(reason);
     }
@@ -693,7 +726,7 @@ fn check_abort(config: &ClickerConfig, start_time: Instant) -> Option<String> {
     if config.process_list_enabled && process::check_process_list(config).is_some() {
         return Some(String::from("Blocked by process list"));
     }
-    if config.time_limit > 0.0 && start_time.elapsed().as_secs_f64() >= config.time_limit {
+    if config.time_limit > 0.0 && active_secs >= config.time_limit {
         return Some(format!("Time limit reached ({:.1}s)", config.time_limit));
     }
     None
@@ -831,6 +864,7 @@ fn run_batch(
 
     st.click_count += batch.physical_clicks as i64;
     CLICK_COUNT.store(st.click_count, Ordering::Relaxed);
+    emit_live_status(control, &mut st.last_status_emit);
 
     let sleep_dur = st.next_batch_time.saturating_duration_since(Instant::now());
     if sleep_dur > Duration::ZERO {
@@ -905,7 +939,14 @@ pub fn start_clicker(config: ClickerConfig, control: RunControl) -> RunOutcome {
         emit_status(&control.app);
     }
 
-    let should_abort = || check_abort(&config, start_time).is_some();
+    let paused_for = Cell::new(Duration::ZERO);
+    let active_secs = || {
+        start_time
+            .elapsed()
+            .saturating_sub(paused_for.get())
+            .as_secs_f64()
+    };
+    let should_abort = || check_abort(&config, active_secs()).is_some();
     let clicker_state = control.app.state::<ClickerState>();
 
     // Keyboard hold mode: emulate Windows auto-repeat
@@ -961,24 +1002,22 @@ pub fn start_clicker(config: ClickerConfig, control: RunControl) -> RunOutcome {
                 st.stop_reason = String::from("Blocked by process list");
                 break;
             }
-            if config.time_limit > 0.0 && start_time.elapsed().as_secs_f64() >= config.time_limit {
+            if config.time_limit > 0.0 && active_secs() >= config.time_limit {
                 st.stop_reason = format!("Time limit reached ({:.1}s)", config.time_limit);
                 break;
             }
 
-            match zone_hit {
-                Some((crate::engine::ZoneAction::Pause, _)) => {
-                    clicker_state.paused_by_zone.store(true, Ordering::SeqCst);
-                }
-                _ => {
-                    clicker_state.paused_by_zone.store(false, Ordering::SeqCst);
-                }
+            let zone_paused = matches!(zone_hit, Some((crate::engine::ZoneAction::Pause, _)));
+            if clicker_state
+                .paused_by_zone
+                .swap(zone_paused, Ordering::SeqCst)
+                != zone_paused
+            {
+                emit_status(&control.app);
             }
 
-            if clicker_state.paused.load(Ordering::SeqCst)
-                || clicker_state.paused_by_zone.load(Ordering::SeqCst)
-            {
-                std::thread::sleep(std::time::Duration::from_millis(10));
+            if clicker_state.paused.load(Ordering::SeqCst) || zone_paused {
+                pause_tick(&paused_for);
                 continue;
             }
 
@@ -989,6 +1028,7 @@ pub fn start_clicker(config: ClickerConfig, control: RunControl) -> RunOutcome {
                 send_key_down(ctx.key_code, ctx.keyboard_uppercase);
                 st.click_count += 1;
                 CLICK_COUNT.store(st.click_count, Ordering::Relaxed);
+                emit_live_status(&control, &mut st.last_status_emit);
                 last_repeat = Instant::now();
             }
 
@@ -1038,24 +1078,23 @@ pub fn start_clicker(config: ClickerConfig, control: RunControl) -> RunOutcome {
             st.stop_reason = String::from("Blocked by process list");
             break;
         }
-        if config.time_limit > 0.0 && start_time.elapsed().as_secs_f64() >= config.time_limit {
+        if config.time_limit > 0.0 && active_secs() >= config.time_limit {
             st.stop_reason = format!("Time limit reached ({:.1}s)", config.time_limit);
             break;
         }
 
-        match zone_hit {
-            Some((crate::engine::ZoneAction::Pause, _)) => {
-                clicker_state.paused_by_zone.store(true, Ordering::SeqCst);
-            }
-            _ => {
-                clicker_state.paused_by_zone.store(false, Ordering::SeqCst);
-            }
+        let zone_paused = matches!(zone_hit, Some((crate::engine::ZoneAction::Pause, _)));
+        if clicker_state
+            .paused_by_zone
+            .swap(zone_paused, Ordering::SeqCst)
+            != zone_paused
+        {
+            emit_status(&control.app);
         }
 
-        if clicker_state.paused.load(Ordering::SeqCst)
-            || clicker_state.paused_by_zone.load(Ordering::SeqCst)
-        {
-            std::thread::sleep(std::time::Duration::from_millis(10));
+        if clicker_state.paused.load(Ordering::SeqCst) || zone_paused {
+            pause_tick(&paused_for);
+            resume_after_pause(&mut st, Instant::now());
             continue;
         }
 
@@ -1172,6 +1211,60 @@ mod tests {
                 single_cycles: 1,
                 physical_clicks: 3,
             }
+        );
+    }
+
+    #[test]
+    fn resuming_after_a_pause_does_not_send_the_missed_clicks() {
+        let config = sample_config();
+        let interval = Duration::from_secs_f64(config.interval_secs);
+        let mut st = LoopState::new(&config);
+        let started = st.next_batch_time;
+
+        // One batch was scheduled, then clicking stayed paused for a second.
+        st.next_batch_time += interval;
+        let resumed_at = started + Duration::from_secs(1);
+        resume_after_pause(&mut st, resumed_at);
+
+        // run_batch reserves one interval, then waits until it is due: a full
+        // interval, not zero (which meant ~25 back-to-back clicks here).
+        st.next_batch_time += interval;
+        assert_eq!(
+            st.next_batch_time.saturating_duration_since(resumed_at),
+            interval
+        );
+    }
+
+    #[test]
+    fn resume_keeps_a_schedule_that_is_still_ahead() {
+        let config = sample_config();
+        let mut st = LoopState::new(&config);
+        let ahead = st.next_batch_time + Duration::from_millis(40);
+        st.next_batch_time = ahead;
+
+        resume_after_pause(&mut st, ahead - Duration::from_millis(5));
+        assert_eq!(st.next_batch_time, ahead);
+    }
+
+    #[test]
+    fn pause_ticks_are_booked_as_paused_time() {
+        let paused_for = Cell::new(Duration::ZERO);
+        pause_tick(&paused_for);
+        pause_tick(&paused_for);
+        assert!(paused_for.get() >= Duration::from_millis(20));
+    }
+
+    #[test]
+    fn time_limit_uses_the_active_time_it_is_given() {
+        let mut config = sample_config();
+        config.corner_stop_enabled = false;
+        config.edge_stop_enabled = false;
+        config.time_limit = 2.0;
+
+        assert_eq!(check_abort(&config, 1.9), None);
+        assert_eq!(
+            check_abort(&config, 2.0).as_deref(),
+            Some("Time limit reached (2.0s)")
         );
     }
 

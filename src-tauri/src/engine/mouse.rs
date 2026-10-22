@@ -48,14 +48,10 @@ impl VirtualScreenRect {
     }
 
     fn normalize_x(&self, pixel_x: i32) -> i32 {
-        let relative_x = pixel_x as f64 - self.left as f64;
-        let ratio = relative_x / self.width as f64;
-        (ratio * 65535.0).round() as i32
+        normalize_axis(pixel_x - self.left, self.width)
     }
     fn normalize_y(&self, pixel_y: i32) -> i32 {
-        let relative_y = pixel_y as f64 - self.top as f64;
-        let ratio = relative_y / self.height as f64;
-        (ratio * 65535.0).round() as i32
+        normalize_axis(pixel_y - self.top, self.height)
     }
 
     #[inline]
@@ -67,6 +63,16 @@ impl VirtualScreenRect {
             self.height,
         )
     }
+}
+
+/// Maps a pixel offset to SendInput's absolute 0..=65535 range. Windows turns
+/// it back into a pixel as `floor(value * size / 65536)`, so we aim at the
+/// pixel centre; `round(offset / size * 65535)` landed one pixel up/left.
+#[inline]
+fn normalize_axis(offset: i32, size: i32) -> i32 {
+    let size = i64::from(size.max(1));
+    let value = (i64::from(offset) * 2 + 1) * 65536 / (2 * size);
+    value.clamp(0, 65535) as i32
 }
 
 pub fn current_cursor_position() -> Option<(i32, i32)> {
@@ -398,4 +404,40 @@ pub fn smooth_move(
     rng: &mut crate::engine::rng::SmallRng,
 ) {
     smooth_move_inner(start_x, start_y, end_x, end_y, duration_ms, rng, true);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // How Windows maps a SendInput absolute coordinate back to a pixel
+    // (checked against GetCursorPos on a 3840x2160 desktop).
+    fn windows_pixel(value: i32, size: i32) -> i32 {
+        ((i64::from(value) * i64::from(size)) >> 16) as i32
+    }
+
+    #[test]
+    fn absolute_coordinates_land_on_the_requested_pixel() {
+        for (left, width) in [
+            (0, 1920),
+            (0, 3840),
+            (-1920, 3840),
+            (0, 1366),
+            (-1280, 3200),
+        ] {
+            let screen = VirtualScreenRect::new(left, 0, width, 1080);
+            for x in left..left + width {
+                let landed = windows_pixel(screen.normalize_x(x), width) + left;
+                assert_eq!(landed, x, "left={left} width={width}");
+            }
+        }
+    }
+
+    #[test]
+    fn absolute_coordinates_stay_in_range_off_screen() {
+        let screen = VirtualScreenRect::new(0, 0, 1920, 1080);
+        assert_eq!(screen.normalize_x(-50), 0);
+        assert_eq!(screen.normalize_x(5000), 65535);
+        assert_eq!(screen.normalize_y(1079), 65505);
+    }
 }

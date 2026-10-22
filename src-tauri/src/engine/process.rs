@@ -267,6 +267,23 @@ fn truncate_title_for_display(title: &str) -> String {
     }
 }
 
+/// Exe file name of `pid`. Opening the process is ~100x cheaper than walking a
+/// process snapshot, which stays as the fallback for processes we cannot open.
+fn process_name_from_pid(pid: u32) -> Option<String> {
+    get_process_exe_path(pid)
+        .and_then(|path| path.rsplit(['\\', '/']).next().map(str::to_string))
+        .filter(|name| !name.is_empty())
+        .or_else(|| get_process_name_from_pid(pid))
+}
+
+// The process-list check runs several times per click and a full snapshot
+// costs several milliseconds, so the name is only resolved again when the
+// foreground window changes.
+fn foreground_name_cache() -> &'static Mutex<Option<(usize, u32, String)>> {
+    static CACHE: OnceLock<Mutex<Option<(usize, u32, String)>>> = OnceLock::new();
+    CACHE.get_or_init(|| Mutex::new(None))
+}
+
 pub fn get_foreground_process_name() -> Option<String> {
     let hwnd = unsafe { GetForegroundWindow() };
     if hwnd.is_null() {
@@ -277,7 +294,21 @@ pub fn get_foreground_process_name() -> Option<String> {
     if pid == 0 {
         return None;
     }
-    get_process_name_from_pid(pid)
+    let hwnd_key = hwnd as usize;
+    if let Some((cached_hwnd, cached_pid, name)) = foreground_name_cache()
+        .lock()
+        .unwrap_or_else(poisoned_inner)
+        .as_ref()
+    {
+        if *cached_hwnd == hwnd_key && *cached_pid == pid {
+            return Some(name.clone());
+        }
+    }
+    let name = process_name_from_pid(pid)?;
+    *foreground_name_cache()
+        .lock()
+        .unwrap_or_else(poisoned_inner) = Some((hwnd_key, pid, name.clone()));
+    Some(name)
 }
 
 fn prefer_titled_pid(existing: u32, candidate: u32, has_title: impl Fn(u32) -> bool) -> u32 {
@@ -438,6 +469,19 @@ mod tests {
             format!("{}Т", "a".repeat(PROCESS_DISPLAY_TITLE_MAX_CHARS - 1))
         );
         assert!(truncated.is_char_boundary(truncated.len()));
+    }
+
+    #[test]
+    fn process_name_from_pid_matches_the_snapshot_name() {
+        let pid = std::process::id();
+        let fast = process_name_from_pid(pid).expect("own process should be openable");
+        let snapshot = get_process_name_from_pid(pid).expect("own process should be listed");
+        assert_eq!(fast.to_lowercase(), snapshot.to_lowercase());
+    }
+
+    #[test]
+    fn process_name_from_pid_is_none_for_a_missing_process() {
+        assert_eq!(process_name_from_pid(u32::MAX - 3), None);
     }
 
     #[test]

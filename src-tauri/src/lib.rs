@@ -236,6 +236,18 @@ fn setup_logging(app: &AppHandle) {
     );
 }
 
+fn show_main_window(app: &AppHandle) {
+    crate::window_lifecycle::on_show(app);
+    if let Some(window) = app.get_webview_window("main") {
+        #[cfg(target_os = "windows")]
+        apply_ws_ex_noactivate(&window, false);
+        let _ = window.unminimize();
+        let _ = window.show();
+        crate::icon::set_app_icons(app);
+        let _ = window.set_focus();
+    }
+}
+
 fn setup_tray(app: &AppHandle) -> Result<(), tauri::Error> {
     let show_item = MenuItem::with_id(app, "show", "Show", true, None::<&str>)?;
     let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
@@ -250,16 +262,7 @@ fn setup_tray(app: &AppHandle) -> Result<(), tauri::Error> {
         .menu(&menu)
         .tooltip("BlurAutoClicker")
         .on_menu_event(|app, event| match event.id.as_ref() {
-            "show" => {
-                crate::window_lifecycle::on_show(app);
-                if let Some(window) = app.get_webview_window("main") {
-                    #[cfg(target_os = "windows")]
-                    apply_ws_ex_noactivate(&window, false);
-                    let _ = window.show();
-                    crate::icon::set_app_icons(app);
-                    let _ = window.set_focus();
-                }
-            }
+            "show" => show_main_window(app),
             "quit" => {
                 crate::app_events::APP_EVENTS_SHUTDOWN
                     .store(true, std::sync::atomic::Ordering::SeqCst);
@@ -278,15 +281,7 @@ fn setup_tray(app: &AppHandle) -> Result<(), tauri::Error> {
                 ..
             } = event
             {
-                let app = tray.app_handle();
-                crate::window_lifecycle::on_show(app);
-                if let Some(window) = app.get_webview_window("main") {
-                    #[cfg(target_os = "windows")]
-                    apply_ws_ex_noactivate(&window, false);
-                    let _ = window.show();
-                    crate::icon::set_app_icons(app);
-                    let _ = window.set_focus();
-                }
+                show_main_window(tray.app_handle());
             }
         })
         .build(app)?;
@@ -472,6 +467,14 @@ pub fn run() {
     }
 
     tauri::Builder::default()
+        // Must be registered first: a second launch (taskbar, Start menu, autostart)
+        // would otherwise run its own hotkey listener and click alongside this one
+        // (issue https://github.com/Blur009/Blur-AutoClicker/issues/174).
+        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+            if !args.iter().any(|a| a == "--autostart") {
+                show_main_window(app);
+            }
+        }))
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_process::init())
