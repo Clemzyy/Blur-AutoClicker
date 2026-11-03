@@ -50,7 +50,7 @@ fn caps_lock_enabled() -> bool {
     unsafe { (GetKeyState(VK_CAPITAL as i32) & 1) != 0 }
 }
 
-fn should_hold_shift_for_case(vk: u16, uppercase: bool) -> bool {
+pub(crate) fn should_hold_shift_for_case(vk: u16, uppercase: bool) -> bool {
     is_alphabetic_vk(vk) && (caps_lock_enabled() != uppercase)
 }
 
@@ -67,34 +67,22 @@ fn push_key_press(inputs: &mut Vec<INPUT>, vk: u16, use_shift: bool) {
     }
 }
 
-pub(crate) fn send_key_down(vk: u16, uppercase: bool) {
-    let use_shift = should_hold_shift_for_case(vk, uppercase);
+// `use_shift` is decided once per press and reused for the release: deciding it
+// again at key-up (Caps Lock may have changed meanwhile) could leave Shift down.
+pub(crate) fn send_key_down_inner(vk: u16, use_shift: bool) {
     if use_shift {
         send_key_event(VK_SHIFT, 0);
     }
     send_key_event(vk, 0);
+    super::held::key_pressed(vk, use_shift);
 }
 
-pub(crate) fn send_key_up(vk: u16, uppercase: bool) {
-    let use_shift = should_hold_shift_for_case(vk, uppercase);
+pub(crate) fn send_key_up_inner(vk: u16, use_shift: bool) {
     send_key_event(vk, KEYEVENTF_KEYUP);
     if use_shift {
         send_key_event(VK_SHIFT, KEYEVENTF_KEYUP);
     }
-}
-
-fn send_key_down_inner(vk: u16, use_shift: bool) {
-    if use_shift {
-        send_key_event(VK_SHIFT, 0);
-    }
-    send_key_event(vk, 0);
-}
-
-fn send_key_up_inner(vk: u16, use_shift: bool) {
-    send_key_event(vk, KEYEVENTF_KEYUP);
-    if use_shift {
-        send_key_event(VK_SHIFT, KEYEVENTF_KEYUP);
-    }
+    super::held::key_released();
 }
 
 pub fn send_key_batch(vk: u16, n: usize, uppercase: bool) {
@@ -120,36 +108,32 @@ pub fn send_key_presses(
     plan: ClickCyclePlan,
     control: &RunControl,
     should_abort: &dyn Fn() -> bool,
-) {
-    if count == 0 {
-        return;
-    }
-
-    if should_abort() {
-        return;
+) -> usize {
+    if count == 0 || should_abort() {
+        return 0;
     }
 
     if plan.kind == ClickCycleKind::Single && count > 1 && plan.first_hold_ms == 0 {
         send_key_batch(vk, count, uppercase);
-        return;
+        return count;
     }
 
     let use_shift = should_hold_shift_for_case(vk, uppercase);
     let is_active = || control.is_active() && !should_abort();
     let mut sleep_for = |duration| sleep_interruptible(duration, control, should_abort);
 
-    for _ in 0..count {
-        if should_abort() {
-            return;
-        }
-        if !execute_click_cycle(
-            plan,
-            &mut || send_key_down_inner(vk, use_shift),
-            &mut || send_key_up_inner(vk, use_shift),
-            &mut sleep_for,
-            &is_active,
-        ) {
-            return;
+    for done in 0..count {
+        if should_abort()
+            || !execute_click_cycle(
+                plan,
+                &mut || send_key_down_inner(vk, use_shift),
+                &mut || send_key_up_inner(vk, use_shift),
+                &mut sleep_for,
+                &is_active,
+            )
+        {
+            return done;
         }
     }
+    count
 }

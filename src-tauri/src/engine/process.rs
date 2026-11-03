@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use std::io::Cursor;
 use std::sync::Mutex;
 use std::sync::OnceLock;
+use std::time::{Duration, Instant};
 
 use crate::error::poisoned_inner;
 use windows_sys::Win32::Foundation::{CloseHandle, HWND, INVALID_HANDLE_VALUE, LPARAM};
@@ -162,7 +163,7 @@ fn extract_icon_pixels(exe_path: &str) -> Option<(Vec<u8>, u32, u32)> {
 fn extract_process_icon_base64(exe_path: &str) -> Option<String> {
     let (pixels, w, h) = extract_icon_pixels(exe_path)?;
     let mut rgba = pixels;
-    for chunk in rgba.chunks_exact_mut(4) {
+    for chunk in rgba.as_chunks_mut::<4>().0 {
         chunk.swap(0, 2);
     }
     let mut png_bytes = Vec::new();
@@ -371,11 +372,39 @@ pub fn list_running_processes() -> Vec<ProcessInfo> {
     result
 }
 
+// The foreground window is briefly null during window switches, so an unknown
+// foreground only counts as "not whitelisted" once it lasts this long.
+const UNKNOWN_FOREGROUND_GRACE: Duration = Duration::from_millis(150);
+
+fn unknown_foreground_since() -> &'static Mutex<Option<Instant>> {
+    static SINCE: OnceLock<Mutex<Option<Instant>>> = OnceLock::new();
+    SINCE.get_or_init(|| Mutex::new(None))
+}
+
+/// Whitelist mode means "click only in these apps": when the foreground app
+/// cannot be identified (secure desktop, protected process), stop rather than
+/// keep clicking an app the user did not allow. Blacklist mode lets it through.
+fn unknown_foreground_triggers(mode: super::ProcessListMode, now: Instant) -> bool {
+    if mode != super::ProcessListMode::Whitelist {
+        return false;
+    }
+    let mut since = unknown_foreground_since()
+        .lock()
+        .unwrap_or_else(poisoned_inner);
+    now.saturating_duration_since(*since.get_or_insert(now)) >= UNKNOWN_FOREGROUND_GRACE
+}
+
 pub fn check_process_list(config: &ClickerConfig) -> Option<()> {
     if !config.process_list_enabled {
         return None;
     }
-    let current = get_foreground_process_name()?.to_lowercase();
+    let Some(name) = get_foreground_process_name() else {
+        return unknown_foreground_triggers(config.process_list_mode, Instant::now()).then_some(());
+    };
+    *unknown_foreground_since()
+        .lock()
+        .unwrap_or_else(poisoned_inner) = None;
+    let current = name.to_lowercase();
     let matching_entry = config
         .process_list_entries
         .iter()
@@ -447,6 +476,29 @@ pub fn is_process_running(name: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn unknown_foreground_stops_a_whitelist_only_after_the_grace_period() {
+        use crate::engine::ProcessListMode::{Blacklist, Whitelist};
+        *unknown_foreground_since().lock().unwrap() = None;
+        let t0 = Instant::now();
+
+        assert!(!unknown_foreground_triggers(Blacklist, t0));
+        assert!(!unknown_foreground_triggers(Whitelist, t0));
+        assert!(!unknown_foreground_triggers(
+            Whitelist,
+            t0 + Duration::from_millis(100)
+        ));
+        assert!(unknown_foreground_triggers(
+            Whitelist,
+            t0 + UNKNOWN_FOREGROUND_GRACE
+        ));
+        assert!(!unknown_foreground_triggers(
+            Blacklist,
+            t0 + Duration::from_secs(5)
+        ));
+        *unknown_foreground_since().lock().unwrap() = None;
+    }
 
     #[test]
     fn truncate_title_preserves_ascii_behavior() {

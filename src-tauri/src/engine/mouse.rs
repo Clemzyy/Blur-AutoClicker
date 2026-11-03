@@ -265,37 +265,35 @@ pub fn send_clicks(
     plan: ClickCyclePlan,
     control: &RunControl,
     should_abort: &dyn Fn() -> bool,
-) {
-    if count == 0 {
-        return;
-    }
-
-    if should_abort() {
-        return;
+) -> usize {
+    if count == 0 || should_abort() {
+        return 0;
     }
 
     if plan.kind == ClickCycleKind::Single && count > 1 && plan.first_hold_ms == 0 {
         send_batch(down, up, count);
-        return;
+        return count;
     }
 
     let is_active = || control.is_active() && !should_abort();
     let mut sleep_for = |duration| sleep_interruptible(duration, control, should_abort);
+    let mut press = || {
+        send_mouse_event(down);
+        super::held::mouse_pressed(up);
+    };
+    let mut release = || {
+        send_mouse_event(up);
+        super::held::mouse_released();
+    };
 
-    for _ in 0..count {
-        if should_abort() {
-            return;
-        }
-        if !execute_click_cycle(
-            plan,
-            &mut || send_mouse_event(down),
-            &mut || send_mouse_event(up),
-            &mut sleep_for,
-            &is_active,
-        ) {
-            return;
+    for done in 0..count {
+        if should_abort()
+            || !execute_click_cycle(plan, &mut press, &mut release, &mut sleep_for, &is_active)
+        {
+            return done;
         }
     }
+    count
 }
 
 #[inline]

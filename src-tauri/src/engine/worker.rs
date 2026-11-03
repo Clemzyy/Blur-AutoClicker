@@ -1,6 +1,6 @@
 use std::cell::Cell;
 use std::f64::consts::PI;
-use std::sync::atomic::Ordering;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use tauri::{AppHandle, Emitter, Manager};
@@ -22,7 +22,11 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
 use super::cycle::ClickCyclePlan;
 use super::failsafe::detect_stop_zones;
 use super::failsafe::should_stop_for_failsafe;
-use super::keyboard::{is_alphabetic_vk, send_key_down, send_key_presses, send_key_up};
+use super::held::release_held_input;
+use super::keyboard::{
+    is_alphabetic_vk, send_key_down_inner, send_key_presses, send_key_up_inner,
+    should_hold_shift_for_case,
+};
 use super::mouse::{
     current_cursor_position, get_button_flags, get_cursor_pos, move_mouse, send_clicks,
     smooth_move, VirtualScreenRect,
@@ -134,6 +138,47 @@ impl RunControl {
     }
 }
 
+static WORKERS_ALIVE: AtomicUsize = AtomicUsize::new(0);
+
+/// Lives for the whole worker thread. Its drop also runs when the worker
+/// panics: held input is released and the run is marked as stopped, instead
+/// of leaving a button down and the UI stuck on "running".
+struct WorkerGuard {
+    control: RunControl,
+}
+
+impl WorkerGuard {
+    fn new(control: RunControl) -> Self {
+        WORKERS_ALIVE.fetch_add(1, Ordering::SeqCst);
+        Self { control }
+    }
+}
+
+impl Drop for WorkerGuard {
+    fn drop(&mut self) {
+        release_held_input();
+        if std::thread::panicking() && self.control.is_current_generation() {
+            let state = self.control.app.state::<ClickerState>();
+            state.running.store(false, Ordering::SeqCst);
+            state.paused_by_zone.store(false, Ordering::SeqCst);
+            *state.stop_reason.lock().unwrap_or_else(poisoned_inner) =
+                Some(String::from("Stopped after an internal error"));
+        }
+        WORKERS_ALIVE.fetch_sub(1, Ordering::SeqCst);
+    }
+}
+
+/// Stops the run and waits briefly for the worker to release what it holds.
+/// Used on app exit: the process would otherwise die mid-click.
+pub fn stop_for_exit(app: &AppHandle) {
+    let _ = stop_clicker_inner(app, Some(String::from("Exit")));
+    let deadline = Instant::now() + Duration::from_millis(200);
+    while WORKERS_ALIVE.load(Ordering::SeqCst) > 0 && Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    release_held_input();
+}
+
 pub fn start_clicker_inner(app: &AppHandle) -> AppResult<ClickerStatusPayload> {
     let state = app.state::<ClickerState>();
     if state.running.load(Ordering::SeqCst) {
@@ -212,6 +257,7 @@ pub fn start_clicker_inner(app: &AppHandle) -> AppResult<ClickerStatusPayload> {
     emit_status(app);
 
     std::thread::spawn(move || {
+        let _guard = WorkerGuard::new(control.clone());
         let outcome = engine_start(config, control.clone());
 
         if outcome.click_count > 0 {
@@ -669,6 +715,7 @@ struct LoopState {
     next_batch_time: Instant,
     moved_click_point_index: Option<usize>,
     last_status_emit: Instant,
+    last_point_emit: Option<Instant>,
 }
 
 impl LoopState {
@@ -690,6 +737,7 @@ impl LoopState {
             next_batch_time: Instant::now(),
             moved_click_point_index: None,
             last_status_emit: Instant::now(),
+            last_point_emit: None,
         }
     }
 }
@@ -712,11 +760,65 @@ fn pause_tick(paused_for: &Cell<Duration>) {
     paused_for.set(paused_for.get() + started.elapsed());
 }
 
+// With several click points of one click each, the point changes on every
+// batch: up to 1000 status events per second without this limit.
+const POINT_STATUS_INTERVAL: Duration = Duration::from_millis(50);
+
 /// Clicks are not owed for time spent paused: without this, the batches skipped
 /// during a pause were sent back-to-back (at hold-time speed) once clicking resumed.
 fn resume_after_pause(st: &mut LoopState, now: Instant) {
     if st.next_batch_time < now {
         st.next_batch_time = now;
+    }
+}
+
+/// Same idea after a stall (suspended process, starved CPU, long smoothing):
+/// a little lateness is caught up to keep the average rate, but a backlog of
+/// more than a few batches is dropped instead of being sent back-to-back.
+fn drop_schedule_backlog(st: &mut LoopState, now: Instant, batch_secs: f64) {
+    let max_lag = Duration::from_secs_f64((batch_secs * 3.0).max(0.05));
+    if now.saturating_duration_since(st.next_batch_time) > max_lag {
+        st.next_batch_time = now;
+    }
+}
+
+enum Gate {
+    Go,
+    Pause,
+    Stop(String),
+}
+
+/// Checks run before every press, in both the normal and the key-hold loops.
+fn gate(
+    config: &ClickerConfig,
+    clicker_state: &ClickerState,
+    control: &RunControl,
+    active_secs: f64,
+) -> Gate {
+    let zone_hit = if config.stop_zones_enabled && !config.stop_zones.is_empty() {
+        current_cursor_position().and_then(|cursor| detect_stop_zones(cursor, config))
+    } else {
+        None
+    };
+    if let Some((crate::engine::ZoneAction::Stop, _)) = zone_hit {
+        return Gate::Stop(String::from("Custom stop zone failsafe"));
+    }
+    if let Some(reason) = check_abort(config, active_secs) {
+        return Gate::Stop(reason);
+    }
+
+    let zone_paused = matches!(zone_hit, Some((crate::engine::ZoneAction::Pause, _)));
+    if clicker_state
+        .paused_by_zone
+        .swap(zone_paused, Ordering::SeqCst)
+        != zone_paused
+    {
+        emit_status(&control.app);
+    }
+    if clicker_state.paused.load(Ordering::SeqCst) || zone_paused {
+        Gate::Pause
+    } else {
+        Gate::Go
     }
 }
 
@@ -816,57 +918,45 @@ fn run_batch(
     } else {
         base_dur
     };
+    drop_schedule_backlog(st, Instant::now(), base_dur);
     st.next_batch_time += Duration::from_secs_f64(batch_dur.max(0.001));
 
-    if ctx.is_keyboard {
-        if batch.double_cycles > 0 {
+    let send = |cycles: usize, plan: ClickCyclePlan| -> usize {
+        if cycles == 0 {
+            0
+        } else if ctx.is_keyboard {
             send_key_presses(
                 config.key_code,
-                batch.double_cycles,
+                cycles,
                 config.keyboard_uppercase,
-                ctx.double_plan,
+                plan,
                 control,
                 should_abort,
-            );
-        }
-        if batch.single_cycles > 0 {
-            send_key_presses(
-                config.key_code,
-                batch.single_cycles,
-                config.keyboard_uppercase,
-                ctx.single_plan,
+            )
+        } else {
+            send_clicks(
+                ctx.down_flag,
+                ctx.up_flag,
+                cycles,
+                plan,
                 control,
                 should_abort,
-            );
+            )
         }
+    };
+    let double_done = send(batch.double_cycles, ctx.double_plan);
+    let single_done = if double_done == batch.double_cycles {
+        send(batch.single_cycles, ctx.single_plan)
     } else {
-        if batch.double_cycles > 0 {
-            send_clicks(
-                ctx.down_flag,
-                ctx.up_flag,
-                batch.double_cycles,
-                ctx.double_plan,
-                control,
-                should_abort,
-            );
-        }
-        if batch.single_cycles > 0 {
-            send_clicks(
-                ctx.down_flag,
-                ctx.up_flag,
-                batch.single_cycles,
-                ctx.single_plan,
-                control,
-                should_abort,
-            );
-        }
-    }
+        0
+    };
 
     if !control.is_active() {
         return false;
     }
 
-    st.click_count += batch.physical_clicks as i64;
+    // Only what was actually sent: an abort can cut a batch short.
+    st.click_count += (double_done * 2 + single_done) as i64;
     CLICK_COUNT.store(st.click_count, Ordering::Relaxed);
     emit_live_status(control, &mut st.last_status_emit);
 
@@ -876,8 +966,9 @@ fn run_batch(
     }
 
     if config.use_click_points() {
-        st.click_point_clicks_remaining =
-            st.click_point_clicks_remaining.saturating_sub(batch.cycles);
+        st.click_point_clicks_remaining = st
+            .click_point_clicks_remaining
+            .saturating_sub(double_done + single_done);
         if st.click_point_clicks_remaining == 0 {
             let next_index = (st.click_point_index + 1) % config.click_points.len();
             if config.stop_when_complete && next_index == 0 {
@@ -899,7 +990,13 @@ fn run_batch(
                 .active_click_point_index
                 .store(st.click_point_index as i64, Ordering::SeqCst);
             state.active_click_point_tick.fetch_add(1, Ordering::SeqCst);
-            emit_status(&control.app);
+            if st
+                .last_point_emit
+                .is_none_or(|last| last.elapsed() >= POINT_STATUS_INTERVAL)
+            {
+                st.last_point_emit = Some(Instant::now());
+                emit_status(&control.app);
+            }
         }
     }
 
@@ -953,94 +1050,61 @@ pub fn start_clicker(config: ClickerConfig, control: RunControl) -> RunOutcome {
     let should_abort = || check_abort(&config, active_secs()).is_some();
     let clicker_state = control.app.state::<ClickerState>();
 
-    // Keyboard hold mode: emulate Windows auto-repeat
+    // Keyboard hold mode: emulate Windows auto-repeat. Every keydown (first
+    // press, repeats, press again after a pause) goes through the same checks,
+    // and the key is released while paused so the target app sees it go up.
     if ctx.keyboard_hold_mode {
-        // Send initial key down
-        send_key_down(ctx.key_code, ctx.keyboard_uppercase);
-        st.click_count += 1;
-        CLICK_COUNT.store(st.click_count, Ordering::Relaxed);
+        let use_shift = should_hold_shift_for_case(ctx.key_code, ctx.keyboard_uppercase);
+        let repeat_delay = Duration::from_millis(ctx.keyboard_repeat_delay_ms as u64);
+        let repeat_interval = Duration::from_millis(ctx.keyboard_repeat_interval_ms as u64);
+        let mut key_down = false;
+        let mut next_press = Instant::now();
 
-        // Wait for initial repeat delay
-        let delay_dur = Duration::from_millis(ctx.keyboard_repeat_delay_ms as u64);
-        sleep_interruptible(delay_dur, &control, &should_abort);
-        if !control.is_active() || should_abort() {
-            send_key_up(ctx.key_code, ctx.keyboard_uppercase);
-            let elapsed = start_time.elapsed().as_secs_f64();
-            let avg_cpu = cpu_usage(cpu_start, cycle_freq, elapsed);
-            return RunOutcome {
-                stop_reason: st.stop_reason,
-                click_count: st.click_count,
-                elapsed_secs: elapsed,
-                avg_cpu,
-            };
-        }
-
-        // Auto-repeat loop: send repeated KEYDOWN at repeat interval
-        let mut last_repeat = Instant::now();
         while control.is_active() {
             if config.limit > 0 && st.click_count >= config.limit as i64 {
                 st.stop_reason = format!("Click limit reached ({})", config.limit);
                 break;
             }
-
-            let zone_hit = if config.stop_zones_enabled && !config.stop_zones.is_empty() {
-                current_cursor_position().and_then(|cursor| detect_stop_zones(cursor, &config))
-            } else {
-                None
-            };
-
-            if let Some((crate::engine::ZoneAction::Stop, _)) = zone_hit {
-                st.stop_reason = String::from("Custom stop zone failsafe");
-                break;
+            match gate(&config, &clicker_state, &control, active_secs()) {
+                Gate::Stop(reason) => {
+                    st.stop_reason = reason;
+                    break;
+                }
+                Gate::Pause => {
+                    if key_down {
+                        send_key_up_inner(ctx.key_code, use_shift);
+                        key_down = false;
+                    }
+                    pause_tick(&paused_for);
+                    continue;
+                }
+                Gate::Go => {}
             }
 
-            if let Some(reason) = should_stop_for_failsafe(&config) {
-                st.stop_reason = reason;
-                break;
-            }
-            if config.task_switcher_stop_enabled && process::is_task_switcher_active() {
-                st.stop_reason = String::from("Blocked by Alt+Tab");
-                break;
-            }
-            if config.process_list_enabled && process::check_process_list(&config).is_some() {
-                st.stop_reason = String::from("Blocked by process list");
-                break;
-            }
-            if config.time_limit > 0.0 && active_secs() >= config.time_limit {
-                st.stop_reason = format!("Time limit reached ({:.1}s)", config.time_limit);
-                break;
-            }
-
-            let zone_paused = matches!(zone_hit, Some((crate::engine::ZoneAction::Pause, _)));
-            if clicker_state
-                .paused_by_zone
-                .swap(zone_paused, Ordering::SeqCst)
-                != zone_paused
-            {
-                emit_status(&control.app);
-            }
-
-            if clicker_state.paused.load(Ordering::SeqCst) || zone_paused {
-                pause_tick(&paused_for);
-                continue;
-            }
-
-            // Send repeated key down (auto-repeat)
-            if last_repeat.elapsed()
-                >= Duration::from_millis(ctx.keyboard_repeat_interval_ms as u64)
-            {
-                send_key_down(ctx.key_code, ctx.keyboard_uppercase);
+            let now = Instant::now();
+            if !key_down || now >= next_press {
+                send_key_down_inner(ctx.key_code, use_shift);
+                // A fresh press waits the initial repeat delay, like a real key.
+                next_press = now
+                    + if key_down {
+                        repeat_interval
+                    } else {
+                        repeat_delay
+                    };
+                key_down = true;
                 st.click_count += 1;
                 CLICK_COUNT.store(st.click_count, Ordering::Relaxed);
                 emit_live_status(&control, &mut st.last_status_emit);
-                last_repeat = Instant::now();
             }
 
-            std::thread::sleep(Duration::from_millis(1));
+            // Wake at the next repeat, but at least every 5 ms for the checks.
+            let wait = next_press.saturating_duration_since(Instant::now());
+            std::thread::sleep(wait.clamp(Duration::from_millis(1), Duration::from_millis(5)));
         }
 
-        // Release key on exit
-        send_key_up(ctx.key_code, ctx.keyboard_uppercase);
+        if key_down {
+            send_key_up_inner(ctx.key_code, use_shift);
+        }
 
         let elapsed = start_time.elapsed().as_secs_f64();
         let avg_cpu = cpu_usage(cpu_start, cycle_freq, elapsed);
@@ -1058,48 +1122,17 @@ pub fn start_clicker(config: ClickerConfig, control: RunControl) -> RunOutcome {
             st.stop_reason = format!("Click limit reached ({})", config.limit);
             break;
         }
-
-        let zone_hit = if config.stop_zones_enabled && !config.stop_zones.is_empty() {
-            current_cursor_position().and_then(|cursor| detect_stop_zones(cursor, &config))
-        } else {
-            None
-        };
-
-        if let Some((crate::engine::ZoneAction::Stop, _)) = zone_hit {
-            st.stop_reason = String::from("Custom stop zone failsafe");
-            break;
-        }
-
-        if let Some(reason) = should_stop_for_failsafe(&config) {
-            st.stop_reason = reason;
-            break;
-        }
-        if config.task_switcher_stop_enabled && process::is_task_switcher_active() {
-            st.stop_reason = String::from("Blocked by Alt+Tab");
-            break;
-        }
-        if config.process_list_enabled && process::check_process_list(&config).is_some() {
-            st.stop_reason = String::from("Blocked by process list");
-            break;
-        }
-        if config.time_limit > 0.0 && active_secs() >= config.time_limit {
-            st.stop_reason = format!("Time limit reached ({:.1}s)", config.time_limit);
-            break;
-        }
-
-        let zone_paused = matches!(zone_hit, Some((crate::engine::ZoneAction::Pause, _)));
-        if clicker_state
-            .paused_by_zone
-            .swap(zone_paused, Ordering::SeqCst)
-            != zone_paused
-        {
-            emit_status(&control.app);
-        }
-
-        if clicker_state.paused.load(Ordering::SeqCst) || zone_paused {
-            pause_tick(&paused_for);
-            resume_after_pause(&mut st, Instant::now());
-            continue;
+        match gate(&config, &clicker_state, &control, active_secs()) {
+            Gate::Stop(reason) => {
+                st.stop_reason = reason;
+                break;
+            }
+            Gate::Pause => {
+                pause_tick(&paused_for);
+                resume_after_pause(&mut st, Instant::now());
+                continue;
+            }
+            Gate::Go => {}
         }
 
         update_target(&config, &ctx, &mut rng, &mut st);
@@ -1248,6 +1281,28 @@ mod tests {
 
         resume_after_pause(&mut st, ahead - Duration::from_millis(5));
         assert_eq!(st.next_batch_time, ahead);
+    }
+
+    #[test]
+    fn a_long_stall_drops_the_backlog() {
+        let config = sample_config();
+        let mut st = LoopState::new(&config);
+        let started = st.next_batch_time;
+        let after_stall = started + Duration::from_secs(5);
+
+        drop_schedule_backlog(&mut st, after_stall, 0.01);
+        assert_eq!(st.next_batch_time, after_stall);
+    }
+
+    #[test]
+    fn small_lateness_is_still_caught_up() {
+        let config = sample_config();
+        let mut st = LoopState::new(&config);
+        let started = st.next_batch_time;
+
+        // 20 ms late at 100 CPS: within the 50 ms tolerance, kept as is.
+        drop_schedule_backlog(&mut st, started + Duration::from_millis(20), 0.01);
+        assert_eq!(st.next_batch_time, started);
     }
 
     #[test]
