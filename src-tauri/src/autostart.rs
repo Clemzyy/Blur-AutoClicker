@@ -14,7 +14,20 @@ pub fn get_autostart_enabled() -> bool {
     let Ok(run_key) = hkcu.open_subkey(RUN_KEY) else {
         return false;
     };
-    run_key.get_value::<String, _>(APP_NAME).is_ok()
+    let Ok(value) = run_key.get_value::<String, _>(APP_NAME) else {
+        return false;
+    };
+    // An entry left by another copy of the app (moved, reinstalled elsewhere)
+    // would start that copy, not this one: show it as off so that turning it
+    // on rewrites it with this exe.
+    let Ok(exe_path) = std::env::current_exe() else {
+        return true;
+    };
+    value.eq_ignore_ascii_case(&autostart_command(&exe_path))
+}
+
+fn autostart_command(exe_path: &std::path::Path) -> String {
+    format!("\"{}\" --autostart", exe_path.display())
 }
 
 pub fn set_autostart_enabled(enabled: bool) -> io::Result<()> {
@@ -30,8 +43,7 @@ pub fn set_autostart_enabled(enabled: bool) -> io::Result<()> {
 
     if enabled {
         let exe_path = std::env::current_exe()?;
-        let value = format!("\"{}\" --autostart", exe_path.display());
-        run_key.set_value(APP_NAME, &value)?;
+        run_key.set_value(APP_NAME, &autostart_command(&exe_path))?;
     } else {
         let _ = run_key.delete_value(APP_NAME);
     }

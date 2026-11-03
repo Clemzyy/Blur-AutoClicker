@@ -9,7 +9,7 @@ use crate::error::AppError;
 use crate::error::AppResult;
 use crate::AppHandle;
 use crate::ClickerState;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::OnceLock;
 use std::time::Duration;
 use std::time::Instant;
@@ -355,6 +355,8 @@ static PHYSICAL_KEY_STATE: OnceLock<&'static [AtomicBool; 256]> = OnceLock::new(
 static HOOKS_ACTIVE: AtomicBool = AtomicBool::new(false);
 // Set by the hooks, cleared by each hotkey check: input arrived that no check has seen yet.
 static HOOK_INPUT_PENDING: AtomicBool = AtomicBool::new(false);
+// When the keyboard hook last saw each key, in epoch ms.
+static LAST_KEY_EVENT_MS: [AtomicU64; 256] = [const { AtomicU64::new(0) }; 256];
 
 fn physical_key_state() -> &'static [AtomicBool; 256] {
     PHYSICAL_KEY_STATE
@@ -396,11 +398,50 @@ fn normalize_low_level_keyboard_vk(khs: &KBDLLHOOKSTRUCT) -> i32 {
     }
 }
 
+// Modifier keys whose hook state can go stale. The engine never injects them
+// except Shift, and an injected Shift only keeps the async state down, so a
+// key reported up by GetAsyncKeyState is really released.
+const RESYNCED_MODIFIERS: [u16; 8] = [
+    VK_LCONTROL,
+    VK_RCONTROL,
+    VK_LMENU,
+    VK_RMENU,
+    VK_LSHIFT,
+    VK_RSHIFT,
+    VK_LWIN,
+    VK_RWIN,
+];
+
+// The async key state is only updated after the hooks return, so a key the hook
+// has just seen go down can still read as up for a moment: leave it alone.
+const MODIFIER_RESYNC_AFTER_MS: u64 = 250;
+
+/// Key-ups that happen on the secure desktop (Ctrl+Alt+Del, Win+L, UAC) never
+/// reach the hooks, which left Ctrl or Alt "held" so that pressing Y alone
+/// fired a Ctrl+Y hotkey. Clears modifiers the system reports as released;
+/// this can only suppress a hotkey, never trigger one.
+fn resync_stale_modifiers() {
+    let now = now_epoch_ms();
+    for vk in RESYNCED_MODIFIERS {
+        let index = usize::from(vk);
+        let slot = &physical_key_state()[index];
+        if slot.load(Ordering::Relaxed)
+            && now.saturating_sub(LAST_KEY_EVENT_MS[index].load(Ordering::Relaxed))
+                >= MODIFIER_RESYNC_AFTER_MS
+            && (unsafe { GetAsyncKeyState(i32::from(vk)) } as u16 & 0x8000) == 0
+        {
+            slot.store(false, Ordering::Relaxed);
+        }
+    }
+}
+
 unsafe extern "system" fn mouse_ll_proc(n_code: i32, w_param: usize, l_param: isize) -> LRESULT {
     if n_code >= 0 {
-        HOOK_INPUT_PENDING.store(true, Ordering::Relaxed);
         let mhs = &*(l_param as *const MSLLHOOKSTRUCT);
         if (mhs.dwExtraInfo) != AUTOCLICKER_EXTRA_INFO {
+            // Only real input: the clicker's own events never change the
+            // physical state, so they need no early poll.
+            HOOK_INPUT_PENDING.store(true, Ordering::Relaxed);
             let (vk, down) = match w_param as u32 {
                 WM_LBUTTONDOWN => (VK_LBUTTON as i32, true),
                 WM_LBUTTONUP => (VK_LBUTTON as i32, false),
@@ -436,13 +477,14 @@ unsafe extern "system" fn mouse_ll_proc(n_code: i32, w_param: usize, l_param: is
 
 unsafe extern "system" fn keyboard_ll_proc(n_code: i32, w_param: usize, l_param: isize) -> LRESULT {
     if n_code >= 0 {
-        HOOK_INPUT_PENDING.store(true, Ordering::Relaxed);
         let khs = &*(l_param as *const KBDLLHOOKSTRUCT);
         if (khs.dwExtraInfo) != AUTOCLICKER_EXTRA_INFO {
+            HOOK_INPUT_PENDING.store(true, Ordering::Relaxed);
             let vk = normalize_low_level_keyboard_vk(khs);
             if (0..256).contains(&vk) {
                 let down = matches!(w_param as u32, WM_KEYDOWN | WM_SYSKEYDOWN);
                 physical_key_state()[vk as usize].store(down, Ordering::Relaxed);
+                LAST_KEY_EVENT_MS[vk as usize].store(now_epoch_ms(), Ordering::Relaxed);
             }
         }
     }
@@ -491,6 +533,9 @@ pub fn start_hotkey_listener(app: AppHandle) {
             if last_check.elapsed() >= POLL_INTERVAL {
                 last_check = Instant::now();
                 HOOK_INPUT_PENDING.store(false, Ordering::Relaxed);
+                if HOOKS_ACTIVE.load(Ordering::Relaxed) {
+                    resync_stale_modifiers();
+                }
 
                 let (binding, strict) = {
                     let binding = state

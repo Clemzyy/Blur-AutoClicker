@@ -138,6 +138,14 @@ pub fn start_click_point_pick_inner(app: AppHandle) -> AppResult<()> {
 
         {
             let mut runtime = picker().lock().unwrap_or_else(poisoned_inner);
+            // Cancelled before the hooks were in place (Esc, or the 1 s start
+            // timeout): no one would post WM_QUIT to this thread any more.
+            if !runtime.active {
+                drop(runtime);
+                UnhookWindowsHookEx(mouse_hook);
+                UnhookWindowsHookEx(keyboard_hook);
+                return;
+            }
             runtime.mouse_hook = mouse_hook;
             runtime.keyboard_hook = keyboard_hook;
             runtime.thread_id = thread_id;
@@ -177,8 +185,16 @@ pub fn start_click_point_pick_inner(app: AppHandle) -> AppResult<()> {
 fn cancel_click_point_pick_from_hook() {
     let app = stop_click_point_pick(None, true);
     if let Some(app) = app {
-        let _ = crate::overlay::hide_overlay(app);
+        // Hiding the overlay waits on the main thread: doing it inside the
+        // low-level hook would stall system-wide input while that thread is busy.
+        std::thread::spawn(move || {
+            let _ = crate::overlay::hide_overlay(app);
+        });
     }
+}
+
+fn pick_active() -> bool {
+    picker().lock().unwrap_or_else(poisoned_inner).active
 }
 
 pub fn cancel_click_point_pick_inner(app: &AppHandle) {
@@ -220,7 +236,8 @@ fn stop_click_point_pick(
     app
 }
 unsafe extern "system" fn mouse_hook_proc(code: i32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
-    if code < 0 {
+    // A hook left over from an ended pick must never swallow right-clicks.
+    if code < 0 || !pick_active() {
         return CallNextHookEx(std::ptr::null_mut(), code, wparam, lparam);
     }
 
@@ -266,7 +283,7 @@ unsafe extern "system" fn mouse_hook_proc(code: i32, wparam: WPARAM, lparam: LPA
     }
 }
 unsafe extern "system" fn keyboard_hook_proc(code: i32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
-    if code < 0 {
+    if code < 0 || !pick_active() {
         return CallNextHookEx(std::ptr::null_mut(), code, wparam, lparam);
     }
 

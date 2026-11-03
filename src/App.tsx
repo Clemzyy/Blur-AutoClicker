@@ -217,6 +217,9 @@ export default function App() {
   const cooldownTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const mountedRef = useRef(false);
+  // Set when the saved settings could not be loaded at startup: the UI then
+  // runs on defaults, which must never be saved over the user's file.
+  const bootFailedRef = useRef(false);
 
   const setUiSettings = (nextSettings: Settings) => {
     uiSettingsRef.current = nextSettings;
@@ -251,7 +254,9 @@ export default function App() {
     syncSettingsToBackend(nextCommittedSettings).catch((err) => {
       error(JSON.stringify({ source: "App.syncSettings", error: String(err) }));
     });
-    scheduleSave(nextCommittedSettings);
+    if (!bootFailedRef.current) {
+      scheduleSave(nextCommittedSettings);
+    }
   };
 
   const restoreLastValidHotkey = () => {
@@ -370,16 +375,33 @@ export default function App() {
   };
 
   const handleWindowClose = async () => {
-    if (committedSettingsRef.current.rememberWindowPosition) {
-      const pos = await getCurrentWindow().outerPosition();
-      const next = sanitizeSettings(
-        {
-          ...committedSettingsRef.current,
-          windowPosition: { x: pos.x, y: pos.y },
-        },
-        APP_VERSION,
+    // A failed position read or save must not keep the window from closing,
+    // and a change made just before closing must not be lost with the
+    // pending 100 ms save.
+    try {
+      const pendingSave = saveTimerRef.current;
+      if (pendingSave) {
+        clearTimeout(pendingSave);
+        saveTimerRef.current = null;
+      }
+      let next = committedSettingsRef.current;
+      if (next.rememberWindowPosition) {
+        const pos = await getCurrentWindow().outerPosition();
+        next = sanitizeSettings(
+          { ...next, windowPosition: { x: pos.x, y: pos.y } },
+          APP_VERSION,
+        );
+      }
+      if (
+        (pendingSave || next.rememberWindowPosition) &&
+        !bootFailedRef.current
+      ) {
+        await saveSettings(next);
+      }
+    } catch (err) {
+      error(
+        JSON.stringify({ source: "App.handleWindowClose", error: String(err) }),
       );
-      await saveSettings(next);
     }
     if (uiSettingsRef.current.minimizeToTray) {
       await invoke("hide_main_window");
@@ -715,6 +737,7 @@ export default function App() {
         error(JSON.stringify({ source: "App.setZoom", error: String(err) })),
       );
 
+    let hydrated = false;
     void Promise.all([
       loadSettings(),
       invoke<AppInfo>("get_app_info"),
@@ -774,6 +797,7 @@ export default function App() {
           lastValidHotkeyRef.current = hydratedSettings.hotkey;
           uiSettingsRef.current = hydratedSettings;
           committedSettingsRef.current = hydratedSettings;
+          hydrated = true;
 
           setTab(hydratedSettings.lastPanel);
           setSettings(hydratedSettings);
@@ -816,6 +840,11 @@ export default function App() {
       .catch((err) => {
         error(JSON.stringify({ source: "App.boot", error: String(err) }));
         if (!mounted) return;
+        // Failing after the settings were applied (backend sync, save) is
+        // fine; failing before means the UI holds defaults, not the saved file.
+        if (!hydrated) {
+          bootFailedRef.current = true;
+        }
         setSettingsLoaded(true);
         pendingShowWindowRef.current = true;
         emit("frontend-ready", {}).catch((err) =>
