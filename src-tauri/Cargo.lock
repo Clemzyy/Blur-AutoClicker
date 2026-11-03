@@ -12,7 +12,6 @@ dependencies = [
  "dirs 6.0.0",
  "futures-util",
  "hex",
- "hmac 0.13.0",
  "image",
  "log",
  "open",

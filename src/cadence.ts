@@ -1,4 +1,4 @@
-import type { RateInputMode, Settings } from "./store";
+import type { Settings } from "./store";
 import type { ClickInterval } from "./settingsSchema";
 import { getMaxClickSpeed } from "./settingsSchema";
 
@@ -24,8 +24,6 @@ export type CadenceDurationFields = Pick<
 >;
 
 export type CadenceRateFields = Pick<Settings, "clickSpeed" | "clickInterval">;
-
-export const RATE_INPUT_MODE_OPTIONS: RateInputMode[] = ["rate", "duration"];
 
 const INTERVAL_MS: Record<ClickInterval, number> = {
   s: 1_000,
