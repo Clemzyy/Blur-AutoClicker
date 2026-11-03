@@ -102,9 +102,12 @@ async function guardRunningInstance() {
   if (process.platform === 'win32') {
     const r = spawnSync('tasklist', ['/NH'], { encoding: 'utf8', shell: true });
     const out = r.stdout || '';
-    running = /BlurAutoClicker/i.test(out) || /crashpad_handler/i.test(out);
+    // Only match our own process: other apps (Spotify, Chrome, ...) ship a
+    // crashpad_handler.exe too. A handler spawned by BlurAutoClicker is caught
+    // by the lock test on the bundled resource below.
+    running = /BlurAutoClicker/i.test(out);
   } else {
-    const r = spawnSync('pgrep', ['-f', 'BlurAutoClicker|crashpad_handler'], {
+    const r = spawnSync('pgrep', ['-f', 'BlurAutoClicker'], {
       encoding: 'utf8',
     });
     running = r.status === 0 && !!r.stdout.trim();

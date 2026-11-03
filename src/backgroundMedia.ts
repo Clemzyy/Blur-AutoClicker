@@ -31,7 +31,6 @@ export const PLAYABLE_VIDEO_EXTENSIONS = ["mp4", "webm", "ogg", "ogv"] as const;
 
 export const LEGACY_VIDEO_EXTENSIONS = ["mov", "m4v", "avi", "mkv"] as const;
 
-const IMAGE_EXT_SET = new Set<string>(IMAGE_EXTENSIONS);
 const VIDEO_EXT_SET = new Set<string>(VIDEO_EXTENSIONS);
 
 const MAX_BACKGROUND_URL_LENGTH = 8192;
@@ -93,11 +92,6 @@ export function getExtension(raw: string): string | null {
   // Extension must be alphanumeric only (prevent weird injection)
   if (!/^[a-z0-9]+$/.test(ext)) return null;
   return ext;
-}
-
-export function isImageExtension(ext: string | null): boolean {
-  if (!ext) return false;
-  return IMAGE_EXT_SET.has(ext);
 }
 
 export function isVideoExtension(ext: string | null): boolean {

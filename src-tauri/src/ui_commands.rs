@@ -4,7 +4,6 @@ use tauri::Manager;
 use tauri::AppHandle;
 
 use crate::app_state::AppInfoPayload;
-use crate::app_state::PositionPayload;
 use crate::engine::stats::CumulativeStats;
 use crate::error::poisoned_inner;
 use crate::error::AppError;
@@ -13,11 +12,9 @@ use crate::settings::ClickerSettings;
 use crate::ClickerState;
 use crate::ClickerStatusPayload;
 
-use crate::engine::mouse::current_cursor_position;
 use crate::engine::worker::current_status;
 use crate::engine::worker::emit_status;
 use crate::engine::worker::now_epoch_ms;
-use crate::engine::worker::start_clicker_inner;
 use crate::engine::worker::stop_clicker_inner;
 use crate::hotkeys::register_hotkey_inner;
 use crate::hotkeys::register_master_inner;
@@ -48,23 +45,8 @@ pub fn set_webview_zoom(window: tauri::WebviewWindow, factor: f64) -> AppResult<
 }
 
 #[tauri::command]
-pub fn start_clicker(app: AppHandle) -> AppResult<ClickerStatusPayload> {
-    start_clicker_inner(&app)
-}
-
-#[tauri::command]
 pub fn stop_clicker(app: AppHandle) -> AppResult<ClickerStatusPayload> {
     stop_clicker_inner(&app, Some(String::from("Stopped for hotkey input")))
-}
-
-#[tauri::command]
-pub fn toggle_clicker(app: AppHandle) -> AppResult<ClickerStatusPayload> {
-    let state = app.state::<ClickerState>();
-    if state.running.load(Ordering::SeqCst) {
-        stop_clicker_inner(&app, Some(String::from("Stopped from toggle")))
-    } else {
-        start_clicker_inner(&app)
-    }
 }
 
 #[tauri::command]
@@ -106,13 +88,6 @@ pub fn update_settings(app: AppHandle, settings: ClickerSettings) -> AppResult<C
         let _ = crate::overlay::show_click_points_overlay(&app);
     }
 
-    Ok(settings)
-}
-
-#[tauri::command]
-pub fn get_settings(app: AppHandle) -> AppResult<ClickerSettings> {
-    let state = app.state::<ClickerState>();
-    let settings = state.settings.lock().unwrap_or_else(poisoned_inner).clone();
     Ok(settings)
 }
 
@@ -161,13 +136,6 @@ pub fn set_hotkey_capture_active(app: AppHandle, active: bool) -> AppResult<()> 
     }
 
     Ok(())
-}
-
-#[tauri::command]
-pub fn pick_position() -> AppResult<PositionPayload> {
-    let (x, y) = current_cursor_position()
-        .ok_or_else(|| AppError::State("Failed to read cursor position".into()))?;
-    Ok(PositionPayload { x, y })
 }
 
 #[tauri::command]
@@ -271,10 +239,10 @@ pub fn open_diagnostics_folder() -> AppResult<()> {
     Ok(())
 }
 
-#[tauri::command]
+// `async` runs it on a worker thread: reading and compressing crash dumps on
+// the main thread froze the window (and any hook callback waiting on it).
+#[tauri::command(async)]
 pub fn export_diagnostics_bundle() -> AppResult<String> {
-    use std::io::Write;
-
     let exports_dir = crate::diagnostics::exports_dir()
         .ok_or_else(|| AppError::State("Failed to resolve exports path".into()))?;
     std::fs::create_dir_all(&exports_dir)?;
@@ -282,10 +250,35 @@ pub fn export_diagnostics_bundle() -> AppResult<String> {
     let ts = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
-        .as_secs();
+        .as_millis();
     let zip_path = exports_dir.join(format!("BlurAutoClicker-diagnostics-{ts}.zip"));
+    // Written under a temporary name and renamed once complete, so a failed
+    // export never leaves a truncated .zip that the rotation below would keep.
+    let tmp_path = exports_dir.join(format!("BlurAutoClicker-diagnostics-{ts}.zip.tmp"));
 
-    let file = std::fs::File::create(&zip_path)?;
+    if let Err(e) = write_diagnostics_zip(&tmp_path) {
+        let _ = std::fs::remove_file(&tmp_path);
+        return Err(e);
+    }
+    std::fs::rename(&tmp_path, &zip_path)?;
+
+    let mut entries: Vec<_> = std::fs::read_dir(&exports_dir)?
+        .filter_map(|e| e.ok())
+        .filter(|e| e.file_name().to_string_lossy().ends_with(".zip"))
+        .collect();
+    entries.sort_by_key(|e| e.file_name());
+    while entries.len() > 5 {
+        if let Some(oldest) = entries.first() {
+            let _ = std::fs::remove_file(oldest.path());
+            entries.remove(0);
+        }
+    }
+
+    Ok(zip_path.to_string_lossy().to_string())
+}
+
+fn write_diagnostics_zip(path: &std::path::Path) -> AppResult<()> {
+    let file = std::fs::File::create(path)?;
     let mut zip_writer = zip::ZipWriter::new(file);
 
     let root = crate::diagnostics::diagnostics_root()
@@ -310,7 +303,15 @@ pub fn export_diagnostics_bundle() -> AppResult<String> {
             .strip_prefix(&root)
             .map_err(|e| AppError::Io(std::io::Error::other(e)))?;
         let name = relative.to_string_lossy().replace('\\', "/");
-        let data = std::fs::read(entry.path())?;
+        // A file locked by another process (a crash dump being written) is
+        // skipped instead of failing the whole export.
+        let mut source = match std::fs::File::open(entry.path()) {
+            Ok(f) => f,
+            Err(e) => {
+                log::warn!("[Diagnostics] Skipping {name} in export: {e}");
+                continue;
+            }
+        };
         zip_writer
             .start_file(
                 name,
@@ -318,26 +319,13 @@ pub fn export_diagnostics_bundle() -> AppResult<String> {
                     .compression_method(zip::CompressionMethod::Deflated),
             )
             .map_err(|e| AppError::Io(std::io::Error::other(e)))?;
-        zip_writer.write_all(&data)?;
+        std::io::copy(&mut source, &mut zip_writer)?;
     }
 
     zip_writer
         .finish()
         .map_err(|e| AppError::Io(std::io::Error::other(e)))?;
-
-    let mut entries: Vec<_> = std::fs::read_dir(&exports_dir)?
-        .filter_map(|e| e.ok())
-        .filter(|e| e.file_name().to_string_lossy().ends_with(".zip"))
-        .collect();
-    entries.sort_by_key(|e| e.file_name());
-    while entries.len() > 5 {
-        if let Some(oldest) = entries.first() {
-            let _ = std::fs::remove_file(oldest.path());
-            entries.remove(0);
-        }
-    }
-
-    Ok(zip_path.to_string_lossy().to_string())
+    Ok(())
 }
 
 #[tauri::command]

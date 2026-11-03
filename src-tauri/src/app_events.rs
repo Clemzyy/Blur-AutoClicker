@@ -20,26 +20,31 @@ pub fn create_app_events_target() -> fern::Dispatch {
             };
             let _ = std::fs::create_dir_all(&dir);
 
-            let mut batch: Vec<String> = Vec::new();
-            let mut approx_size: u64 = 0;
+            // Each record is written as it arrives. They used to be batched
+            // until 5 MB or the end of the loop, which never came: the sender
+            // lives in the global logger and the process exits with the thread
+            // still waiting, so the batch was always lost.
+            let mut file: Option<std::fs::File> = None;
+            let mut written: u64 = 0;
 
             for record_str in rx {
                 if APP_EVENTS_SHUTDOWN.load(Ordering::SeqCst) {
                     break;
                 }
                 let record_len = record_str.len() as u64 + 1;
-                if approx_size + record_len > MAX_FILE_SIZE {
-                    flush_telemetry_batch(&dir, &batch);
-                    batch.clear();
-                    approx_size = 0;
+                if file.is_some() && written + record_len > MAX_FILE_SIZE {
+                    file = None;
                     rotate_telemetry_files(&dir);
                 }
-                batch.push(record_str);
-                approx_size += record_len;
-            }
-
-            if !batch.is_empty() {
-                flush_telemetry_batch(&dir, &batch);
+                if file.is_none() {
+                    file = open_telemetry_file(&dir);
+                    written = 0;
+                }
+                if let Some(f) = file.as_mut() {
+                    if writeln!(f, "{record_str}").is_ok() {
+                        written += record_len;
+                    }
+                }
             }
         })
         .expect("failed to spawn telemetry writer thread");
@@ -65,17 +70,18 @@ fn telemetry_filter(metadata: &log::Metadata) -> bool {
         && metadata.level() <= log::Level::Warn
 }
 
-fn flush_telemetry_batch(dir: &std::path::Path, batch: &[String]) {
+fn open_telemetry_file(dir: &std::path::Path) -> Option<std::fs::File> {
+    // Milliseconds and append mode: two files opened in the same second no
+    // longer truncate each other.
     let ts = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
-        .as_secs();
-    let path = dir.join(format!("events_{ts}.jsonl"));
-    if let Ok(mut file) = std::fs::File::create(&path) {
-        for line in batch {
-            let _ = writeln!(file, "{line}");
-        }
-    }
+        .as_millis();
+    std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(dir.join(format!("events_{ts}.jsonl")))
+        .ok()
 }
 
 fn rotate_telemetry_files(dir: &std::path::Path) {

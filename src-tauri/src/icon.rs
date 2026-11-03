@@ -376,7 +376,7 @@ fn force_window_icon_big(window: &tauri::WebviewWindow, img: &RgbaImage) {
 // byte order Windows icon bitmaps require, with alpha premultiplied.
 fn premultiply_rgba_to_bgra(raw: &[u8]) -> Vec<u8> {
     let mut px = Vec::with_capacity(raw.len());
-    for p in raw.chunks_exact(4) {
+    for p in raw.as_chunks::<4>().0 {
         let (r, g, b, a) = (p[0] as u32, p[1] as u32, p[2] as u32, p[3] as u32);
         px.push(((b * a + 127) / 255) as u8);
         px.push(((g * a + 127) / 255) as u8);

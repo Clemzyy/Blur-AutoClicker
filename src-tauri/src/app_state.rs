@@ -57,13 +57,6 @@ pub struct ClickerStatusPayload {
 
 #[derive(Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct PositionPayload {
-    pub x: i32,
-    pub y: i32,
-}
-
-#[derive(Clone, serde::Serialize)]
-#[serde(rename_all = "camelCase")]
 pub struct AppInfoPayload {
     pub version: String,
     pub update_status: String,

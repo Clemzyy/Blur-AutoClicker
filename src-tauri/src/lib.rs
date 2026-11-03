@@ -181,6 +181,10 @@ fn setup_panic_hook() {
 
         crate::diagnostics::write_panic_report(&report);
 
+        // The dialog blocks this thread: a panic between a press and its
+        // release would otherwise keep the button or key down until dismissed.
+        crate::engine::held::release_held_input();
+
         unsafe {
             use windows_sys::Win32::UI::WindowsAndMessaging::MessageBoxW;
             use windows_sys::Win32::UI::WindowsAndMessaging::MB_ICONERROR;
@@ -199,6 +203,11 @@ fn setup_panic_hook() {
                 MB_ICONERROR,
             );
         }
+
+        // Do close, as the dialog says. A panic on a background thread used to
+        // only end that thread, leaving the app alive without hotkeys or with
+        // the clicker shown as running while nothing clicked.
+        std::process::exit(1);
     }));
 }
 
@@ -561,17 +570,13 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             ui_commands::set_webview_zoom,
             ui_commands::get_text_scale_factor,
-            ui_commands::start_clicker,
             ui_commands::stop_clicker,
-            ui_commands::toggle_clicker,
             ui_commands::update_settings,
-            ui_commands::get_settings,
             ui_commands::reset_settings,
             ui_commands::get_status,
             ui_commands::register_hotkey,
             ui_commands::set_hotkey_capture_active,
             ui_commands::register_master,
-            ui_commands::pick_position,
             ui_commands::start_click_point_pick,
             ui_commands::cancel_click_point_pick,
             ui_commands::start_custom_stop_zone_pick,
@@ -603,8 +608,11 @@ pub fn run() {
             match &event {
                 tauri::RunEvent::ExitRequested { .. } => {
                     // Central shutdown: fires for window close, tray quit,
-                    // quit_app, and updater restarts. Drops the crashpad client
-                    // so crashpad_handler.exe terminates instead of being orphaned.
+                    // quit_app, and updater restarts. Stops a running clicker so
+                    // no click or key is left held down, then drops the crashpad
+                    // client so crashpad_handler.exe terminates instead of being
+                    // orphaned.
+                    crate::engine::worker::stop_for_exit(app_handle);
                     crate::crash_handler::shutdown_crashpad();
                 }
                 tauri::RunEvent::WindowEvent { event, label, .. } => match event {
